@@ -28,3 +28,5 @@ elab (UnaryOp i o t)       = UnaryOp i o (elab t)
 
 elab_decl :: Decl NTerm -> Decl Term
 elab_decl = fmap elab
+
+-- TODO: Definir desugar para pasar de STm a NTerm

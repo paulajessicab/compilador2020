@@ -28,7 +28,7 @@ data Ty =
 
 type Name = String
 
-data Const = CNat Int
+data Const = CNat !Int
   deriving Show
 
 data UnaryOp = Succ | Pred

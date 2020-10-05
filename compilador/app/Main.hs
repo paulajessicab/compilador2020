@@ -27,7 +27,7 @@ import Global ( GlEnv(..) )
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab )
+import Elab ( elab, desugar, elab',desugarDec )
 import Eval ( eval )
 import PPrint ( pp , ppTy )
 import MonadPCF
@@ -82,9 +82,10 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-handleDecl ::  MonadPCF m => Decl NTerm -> m ()
-handleDecl (Decl p x t) = do
-        let tt = elab t
+handleDecl ::  MonadPCF m => SDecl STerm -> m () --Todo ver
+handleDecl d = do
+        let (Decl p x t) = desugarDec d
+        let tt = elab' t
         tcDecl (Decl p x tt)    
         te <- eval tt
         addDecl (Decl p x te)
@@ -166,10 +167,10 @@ compilePhrase x =
   do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of 
-      Left d  -> handleDecl d
-      Right t -> handleTerm t
+      Left d  -> handleDecl d -- Todo arreglar para que haga el typecheck del STerm
+      Right t -> handleTerm t --Todo acomodar elab y elab'
 
-handleTerm ::  MonadPCF m => NTerm -> m ()
+handleTerm ::  MonadPCF m => STerm -> m ()
 handleTerm t = do
          let tt = elab t
          s <- get
@@ -180,13 +181,16 @@ handleTerm t = do
 printPhrase   :: MonadPCF m => String -> m ()
 printPhrase x =
   do
-    x' <- parseIO "<interactive>" tm x
-    let ex = elab x'
-    t  <- case x' of 
+    sterm <- parseIO "<interactive>" tm x
+    let nterm = desugar sterm
+    let ex = elab' nterm
+    t  <- case nterm of 
            (V p f) -> maybe ex id <$> lookupDecl f
            _       -> return ex  
+    printPCF "STerm:"
+    printPCF (show sterm)
     printPCF "NTerm:"
-    printPCF (show x')
+    printPCF (show nterm)
     printPCF "\nTerm:"
     printPCF (show t)
 

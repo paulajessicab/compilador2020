@@ -29,7 +29,7 @@ lexer = Tok.makeTokenParser $
         emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "fun", "fix", "then", "else", 
-                          "succ", "pred", "ifz", "Nat"],
+                          "succ", "pred", "ifz", "Nat", "in", "let rec"],
          reservedOpNames = ["->",":","="]
         }
 
@@ -76,11 +76,23 @@ typeP = try (do
           y <- typeP
           return (FunTy x y))
       <|> tyatom
+
+-- Todo typeAlias
+-- TODO desugar types
           
 const :: P Const
 const = CNat <$> num
 
-unaryOp :: P NTerm
+binding :: P (Name, Ty)
+binding = do v <- var
+             reservedOp ":"
+             ty <- typeP
+             return (v, ty)
+
+binders :: P [(Name, Ty)]
+binders = many $ parens $ binding
+
+unaryOp :: P STerm
 unaryOp = do
   i <- getPos
   foldr (\(w, r) rest -> try (do 
@@ -89,35 +101,31 @@ unaryOp = do
                                  return (r a)) <|> rest) parserZero (mapping i)
   where
    mapping i = [
-       ("succ", UnaryOp i Succ)
-     , ("pred", UnaryOp i Pred)
+       ("succ", SUnaryOp i Succ)
+     , ("pred", SUnaryOp i Pred)
     ]
 
-atom :: P NTerm
-atom =     (flip Const <$> const <*> getPos)
-       <|> flip V <$> var <*> getPos
+atom :: P STerm
+atom =     (flip SConst <$> const <*> getPos)
+       <|> flip SV <$> var <*> getPos
        <|> parens tm
 
-lam :: P NTerm
+lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
-         (v,ty) <- parens $ do 
-                    v <- var
-                    reservedOp ":"
-                    ty <- typeP 
-                    return (v,ty)
+         bs <- binders
          reservedOp "->"
          t <- tm
-         return (Lam i v ty t)
+         return (SLam i bs t)
 
 -- Nota el parser app también parsea un solo atom.
-app :: P NTerm
+app :: P STerm
 app = (do i <- getPos
           f <- atom
           args <- many atom
-          return (foldl (App i) f args))
+          return (foldl (SApp i) f args))
 
-ifz :: P NTerm
+ifz :: P STerm
 ifz = do i <- getPos
          reserved "ifz"
          c <- tm
@@ -125,44 +133,62 @@ ifz = do i <- getPos
          t <- tm
          reserved "else"
          e <- tm
-         return (IfZ i c t e)
+         return (SIfZ i c t e)
 
-binding :: P (Name, Ty)
-binding = do v <- var
-             reservedOp ":"
-             ty <- typeP
-             return (v, ty)
-
-fix :: P NTerm
+fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
-         (f, fty) <- parens binding
-         (x, xty) <- parens binding
+         bs <- binders
          reservedOp "->"
          t <- tm
-         return (Fix i f fty x xty t)
+         return (SFix i bs t)
 
 -- | Parser de términos
-tm :: P NTerm
+tm :: P STerm
 tm = app <|> lam <|> ifz <|> unaryOp <|> fix
 
--- | Parser de declaraciones
-decl :: P (Decl NTerm)
-decl = do 
+-- | Parser de declaraciones let
+declLet :: P (SDecl STerm)
+declLet = do 
      i <- getPos
      reserved "let"
      v <- var
+     bs <- binders
+     reservedOp ":"
+     ty <- typeP
      reservedOp "="
      t <- tm
-     return (Decl i v t)
+     reservedOp "in"
+     t' <- tm
+     return (SLetDec i v bs ty t)
 
--- | Parser de programas (listas de declaraciones) 
-program :: P [Decl NTerm]
+-- | Parser de declaraciones recursivas
+declRec :: P (SDecl STerm)
+declRec = do 
+     i <- getPos
+     reserved "let rec"
+     v <- var
+     bs <- binders
+     reservedOp ":"
+     ty <- typeP
+     reservedOp "="
+     t <- tm
+     reservedOp "in"
+     t' <- tm
+     return (SLetRecDec i v bs ty t)
+
+-- | Parser de declaraciones
+decl :: P (SDecl STerm)
+decl = declLet <|> declRec
+
+
+-- | Parser de programas (listas de declaraciones) TODO let rec
+program :: P [SDecl STerm]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl NTerm) NTerm)
+declOrTm :: P (Either (SDecl STerm) STerm)
 declOrTm =  try (Left <$> decl) <|> (Right <$> tm)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
@@ -170,7 +196,7 @@ runP :: P a -> String -> String -> Either ParseError a
 runP p s filename = runParser (whiteSpace *> p <* eof) () filename s
 
 --para debugging en uso interactivo (ghci)
-parse :: String -> NTerm
+parse :: String -> STerm
 parse s = case runP tm s "" of
             Right t -> t
             Left e -> error ("no parse: " ++ show s)

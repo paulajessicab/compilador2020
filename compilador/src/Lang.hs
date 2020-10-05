@@ -34,6 +34,33 @@ data Const = CNat !Int
 data UnaryOp = Succ | Pred
   deriving Show
 
+data STy = 
+      SNatTy
+    | SFunTy Ty Ty
+    | SAliasTy Name
+
+data SDecl a =
+    SAliasType { aliasPos :: Pos, aliasName :: Name, aliasTy :: Ty }
+  | SLetDec { letDeclPos :: Pos, letDeclName :: Name, letDeclParams :: [(Name, Ty)], letDeclTy :: Ty, letDeclBody :: a }
+  | SLetRecDec { letRecDeclPos :: Pos, letRecDeclName :: Name, letRecDeclParams :: [(Name, Ty)], letRecDeclTy :: Ty, letRecDeclBody :: a }
+  deriving (Show,Functor)
+
+-- | Shallow AST para soportar azúcar sintáctico
+--
+data STm info var =
+    SV info var
+  | SConst info Const
+  | SLet info Name [(Name, Ty)] Ty (STm info var) (STm info var)
+  | SLetRec info Name [(Name, Ty)] Ty (STm info var) (STm info var)
+  | SLam info [(Name, Ty)] (STm info var)
+  | SApp info (STm info var) (STm info var)
+  | SUnaryOp info UnaryOp (STm info var)
+  | SFix info [(Name, Ty)] (STm info var)
+  | SIfZ info (STm info var) (STm info var) (STm info var)
+  deriving (Show, Functor)
+
+type STerm = STm Pos Name   -- ^ 'STm' tiene 'Name's como variables ligadas y libres, guarda posición
+
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a =
     Decl { declPos :: Pos, declName :: Name, declBody :: a }

@@ -29,7 +29,7 @@ lexer = Tok.makeTokenParser $
         emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "fun", "fix", "then", "else", 
-                          "succ", "pred", "ifz", "Nat", "in", "let rec"],
+                          "succ", "pred", "ifz", "Nat", "in", "let rec", "type"],
          reservedOpNames = ["->",":","="]
         }
 
@@ -77,6 +77,12 @@ typeP = try (do
           return (FunTy x y))
       <|> tyatom
 
+{-Ver de tyvar
+Por como esta escrito puede tomar como un nombre valido Nat por que parsea primero que el N sea mayúscula y después at se fija que sea un nombre valido, mientras que nombres como PNat te dice que es invalido por que entiende que la parte de Nat es un nombre reservado luego de haber parseado P como mayúscula.
+También no toma cosas como T1.
+Pero me preocupaba más que fuera más permisivo, y que después haya que reescribir ejemplos a que sea poco permisivo...
+-}
+
 -- Todo typeAlias
 -- TODO desugar types
           
@@ -92,7 +98,30 @@ binding = do v <- var
 binders :: P [(Name, Ty)]
 binders = many $ parens $ binding
 
-unaryOp :: P STerm
+unaryOpName :: P UnaryOp
+unaryOpName =
+          (reserved "succ" >> return Succ)
+     <|>  (reserved "pred" >> return Pred)
+
+unaryOpApp :: P STerm --TODO ver si era así
+unaryOpApp = do  i <- getPos
+                 o <- unaryOpName
+                 a <- atom
+                 return (SApp i (SUnaryOp i o) a)
+{-unaryOpApp :: P STerm
+unaryOpApp = do  i <- getPos
+                 o <- unaryOpName
+                 a <- atom
+                 return (SUnaryOp i o a)-}
+
+unaryOpNotApp :: P STerm
+unaryOpNotApp = do  i <- getPos
+                    o <- unaryOpName
+                    return (SUnaryOp i o)
+                    --return (SUnaryOpNotApp i o)
+
+unaryOp = unaryOpApp <|> unaryOpNotApp
+{-unaryOp :: P STerm
 unaryOp = do
   i <- getPos
   foldr (\(w, r) rest -> try (do 
@@ -103,11 +132,12 @@ unaryOp = do
    mapping i = [
        ("succ", SUnaryOp i Succ)
      , ("pred", SUnaryOp i Pred)
-    ]
+    ]-}
 
 atom :: P STerm
 atom =     (flip SConst <$> const <*> getPos)
        <|> flip SV <$> var <*> getPos
+       <|> unaryOpNotApp --ver
        <|> parens tm
 
 lam :: P STerm
@@ -143,9 +173,56 @@ fix = do i <- getPos
          t <- tm
          return (SFix i bs t)
 
+-- | Parser de términos let
+termLet :: P STerm
+termLet = do 
+     i <- getPos
+     reserved "let"
+     v <- var
+     bs <- binders
+     reservedOp ":"
+     ty <- typeP
+     reservedOp "="
+     t <- tm
+     reservedOp "in"
+     t' <- tm
+     return (SLet i v bs ty t t')
+
+-- | Parser de términos let recursivos
+termLetRec :: P STerm
+termLetRec = do 
+     i <- getPos
+     reserved "let rec"
+     v <- var
+     bs <- binders
+     reservedOp ":"
+     ty <- typeP
+     reservedOp "="
+     t <- tm
+     reservedOp "in"
+     t' <- tm
+     return (SLetRec i v bs ty t t')
+
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> unaryOp <|> fix
+tm = app <|> lam <|> ifz <|> unaryOp <|> fix <|> termLet <|> termLetRec
+
+-- | Parser de nombres de variables de tipos
+tyvar :: P Name
+tyvar = Tok.lexeme lexer $ do
+          c  <- upper
+          cs <- option "" identifier
+          return (c:cs)
+
+-- | Parser de declaración de sinónimos de tipos
+declTySyn :: P (SDecl STerm)
+declTySyn = do
+     i <- getPos
+     reserved "type"
+     tn <- tyvar
+     reservedOp "="
+     ty <- typeP
+     return (SAliasType i tn ty)
 
 -- | Parser de declaraciones let
 declLet :: P (SDecl STerm)
@@ -179,8 +256,7 @@ declRec = do
 
 -- | Parser de declaraciones
 decl :: P (SDecl STerm)
-decl = declLet <|> declRec
-
+decl = declTySyn <|> declLet <|> declRec
 
 -- | Parser de programas (listas de declaraciones) TODO let rec
 program :: P [SDecl STerm]
@@ -189,7 +265,7 @@ program = many decl
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
 declOrTm :: P (Either (SDecl STerm) STerm)
-declOrTm =  try (Left <$> decl) <|> (Right <$> tm)
+declOrTm =  try (Right <$> tm) <|> (Left <$> decl)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
 runP :: P a -> String -> String -> Either ParseError a

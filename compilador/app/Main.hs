@@ -189,7 +189,7 @@ printPhrase x =
            _       -> return ex  
     printPCF "STerm:"
     printPCF (show sterm)
-    printPCF "NTerm:"
+    printPCF "\nNTerm:"
     printPCF (show nterm)
     printPCF "\nTerm:"
     printPCF (show t)

@@ -39,3 +39,7 @@ abort s = error ("INTERNAL ERROR: " ++ s)
 infixl 1 |>
 (|>) :: a -> (a -> b) -> b
 x |> f = f x
+
+
+--
+--data Either3 a b c = Left a | Middle b | Right c

@@ -65,16 +65,16 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P Ty
-tyatom = (reserved "Nat" >> return NatTy)
+tyatom :: P STy
+tyatom = (reserved "Nat" >> return SNatTy)
          <|> parens typeP
 
-typeP :: P Ty
+typeP :: P STy
 typeP = try (do 
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunTy x y))
+          return (SFunTy x y))
       <|> tyatom
 
 {-Ver de tyvar
@@ -89,13 +89,13 @@ Pero me preocupaba más que fuera más permisivo, y que después haya que reescr
 const :: P Const
 const = CNat <$> num
 
-binding :: P (Name, Ty)
+binding :: P (Name, STy)
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
              return (v, ty)
 
-binders :: P [(Name, Ty)]
+binders :: P [(Name, STy)]
 binders = many $ parens $ binding
 
 unaryOpName :: P UnaryOp
@@ -222,7 +222,7 @@ declTySyn = do
      tn <- tyvar
      reservedOp "="
      ty <- typeP
-     return (SAliasType i tn ty)
+     return (STypeAlias i tn ty)
 
 -- | Parser de declaraciones let
 declLet :: P (SDecl STerm)
@@ -235,8 +235,6 @@ declLet = do
      ty <- typeP
      reservedOp "="
      t <- tm
-     reservedOp "in"
-     t' <- tm
      return (SLetDec i v bs ty t)
 
 -- | Parser de declaraciones recursivas
@@ -250,15 +248,13 @@ declRec = do
      ty <- typeP
      reservedOp "="
      t <- tm
-     reservedOp "in"
-     t' <- tm
      return (SLetRecDec i v bs ty t)
 
 -- | Parser de declaraciones
 decl :: P (SDecl STerm)
 decl = declTySyn <|> declLet <|> declRec
 
--- | Parser de programas (listas de declaraciones) TODO let rec
+-- | Parser de programas (listas de declaraciones)
 program :: P [SDecl STerm]
 program = many decl
 
@@ -268,6 +264,7 @@ declOrTm :: P (Either (SDecl STerm) STerm)
 declOrTm =  try (Right <$> tm) <|> (Left <$> decl)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
+-- p parser, x cadena a parsear, filename
 runP :: P a -> String -> String -> Either ParseError a
 runP p s filename = runParser (whiteSpace *> p <* eof) () filename s
 

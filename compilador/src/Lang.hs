@@ -9,23 +9,18 @@ Maintainer  : mauro@fceia.unr.edu.ar
 Stability   : experimental
 
 Definiciones de distintos tipos de datos:
+  - Tipos de datos con SS
   - AST de términos
   - Declaraciones
   - Tipos
   - Variables
-
 -}
 
 module Lang where
 
 import Common ( Pos )
 
--- | AST de Tipos
-data Ty = 
-      NatTy 
-    | FunTy Ty Ty
-    deriving (Show,Eq)
-
+-- Constructores Básicos
 type Name = String
 
 data Const = CNat !Int
@@ -34,34 +29,40 @@ data Const = CNat !Int
 data UnaryOp = Succ | Pred
   deriving Show
 
+-- | Shallow Types AST
 data STy = 
       SNatTy
-    | SFunTy Ty Ty
-    | SAliasTy Name
+    | SFunTy STy STy
+    | SAliasTy Name  -- Para cuando se utiliza el alias en lugar del tipo
+    deriving Show
 
+-- | Tipo de datos de las declaraciones con SS
 data SDecl a =
-    SAliasType { aliasPos :: Pos, aliasName :: Name, aliasTy :: Ty }
-  | SLetDec { letDeclPos :: Pos, letDeclName :: Name, letDeclParams :: [(Name, Ty)], letDeclTy :: Ty, letDeclBody :: a }
-  | SLetRecDec { letRecDeclPos :: Pos, letRecDeclName :: Name, letRecDeclParams :: [(Name, Ty)], letRecDeclTy :: Ty, letRecDeclBody :: a }
+    STypeAlias { aliasPos :: Pos, aliasName :: Name, aliasTy :: STy } -- Para definir alias de tipos
+  | SLetDec { letDeclPos :: Pos, letDeclName :: Name, letDeclParams :: [(Name, STy)], letDeclTy :: STy, letDeclBody :: a }
+  | SLetRecDec { letRecDeclPos :: Pos, letRecDeclName :: Name, letRecDeclParams :: [(Name, STy)], letRecDeclTy :: STy, letRecDeclBody :: a }
   deriving (Show,Functor)
 
 -- | Shallow AST para soportar azúcar sintáctico
---
 data STm info var =
     SV info var
   | SConst info Const
-  | SLet info Name [(Name, Ty)] Ty (STm info var) (STm info var)
-  | SLetRec info Name [(Name, Ty)] Ty (STm info var) (STm info var)
-  | SLam info [(Name, Ty)] (STm info var)
+  | SLet info Name [(Name, STy)] STy (STm info var) (STm info var)
+  | SLetRec info Name [(Name, STy)] STy (STm info var) (STm info var)
+  | SLam info [(Name, STy)] (STm info var)
   | SApp info (STm info var) (STm info var)
-  | SUnaryOp info UnaryOp --(STm info var)
-  -- | SUnaryOp info UnaryOp (STm info var)
-  -- | SUnaryOpNotApp info UnaryOp --(STm info var)
-  | SFix info [(Name, Ty)] (STm info var)
+  | SUnaryOp info UnaryOp -- Por ahora el parseo de un unaryOp aplicado a un valor se hace con una aplicación TODO VER
+  | SFix info [(Name, STy)] (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)
   deriving (Show, Functor)
 
-type STerm = STm Pos Name   -- ^ 'STm' tiene 'Name's como variables ligadas y libres, guarda posición
+type STerm = STm Pos Name   -- Los términos con SS guardan la posición y tienen variables con nombres
+
+-- | AST de Tipos
+data Ty = 
+      NatTy 
+    | FunTy Ty Ty
+    deriving (Show,Eq)
 
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a =
@@ -83,6 +84,7 @@ data Tm info var =
   deriving (Show, Functor)
 
 type NTerm = Tm Pos Name   -- ^ 'Tm' tiene 'Name's como variables ligadas y libres, guarda posición
+
 type Term = Tm Pos Var     -- ^ 'Tm' con índices de De Bruijn como variables ligadas, different type of variables, guarda posición
 
 data Var = 

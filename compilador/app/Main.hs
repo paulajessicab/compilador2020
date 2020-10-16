@@ -27,11 +27,12 @@ import Global ( GlEnv(..) )
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab, desugar, elab',desugarDec )
+import Elab ( elab, desugar, desugarTy, desugarDec, elab',desugarDec )
 import Eval ( eval )
 import PPrint ( pp , ppTy )
 import MonadPCF
 import TypeChecker ( tc, tcDecl )
+import Common (Pos(NoPos))
 
 prompt :: String
 prompt = "PCF> "
@@ -40,12 +41,12 @@ main :: IO ()
 main = do args <- getArgs
           runPCF (runInputT defaultSettings (main' args))
           return ()
-          
+
 main' :: (MonadPCF m, MonadMask m) => [String] -> InputT m ()
 main' args = do
         lift $ catchErrors $ compileFiles args
-        s <- lift $ get
-        when (inter s) $ liftIO $ putStrLn
+        s <- lift $ get -- recupera el estado interno de la monada PCF (GlEnv) y lo levanta a InputT
+        when (inter s) $ liftIO $ putStrLn -- Si no se modificó la bandera interactiva con el compile intenta el modo interactivo
           (  "Entorno interactivo para PCF0.\n"
           ++ "Escriba :? para recibir ayuda.")
         loop  
@@ -59,6 +60,8 @@ main' args = do
                        b <- lift $ catchErrors $ handleCommand c
                        maybe loop (flip when loop) b
  
+-- | Toma una lista de nombres de archivos, cambia a modo no interactivo,
+-- | guarda en el estado el último archivo cargado y los va compilando
 compileFiles ::  MonadPCF m => [String] -> m ()
 compileFiles []     = return ()
 compileFiles (x:xs) = do
@@ -66,29 +69,48 @@ compileFiles (x:xs) = do
         compileFile x
         compileFiles xs
 
+-- | Toma un nombre de archivo, lo lee, 
 compileFile ::  MonadPCF m => String -> m ()
 compileFile f = do
     printPCF ("Abriendo "++f++"...")
-    let filename = reverse(dropWhile isSpace (reverse f))
-    x <- liftIO $ catch (readFile filename)
-               (\e -> do let err = show (e :: IOException)
+    let filename = reverse(dropWhile isSpace (reverse f)) -- Trim
+    x <- liftIO $ catch (readFile filename) -- Lectura del archivo, (a IOString)
+               (\e -> do let err = show (e :: IOException) -- Cuerpo catch
                          hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
                          return "")
-    decls <- parseIO filename program x
-    mapM_ handleDecl decls
+    decls <- parseIO filename program x -- Ejecuta el parser de programa (declaraciones)
+    mapM_ handleDecl decls --mapM_ Mapea cada elemento de decls a una acción monadica (handleDecl), evalua de izq a der, ignora los resultados (mapM no).
 
+-- | Toma un nombre de archivo, un parser y el contenido del archivo, ejecuta el parser y devuelve m a (a es [SDecl STerm]) o falla
 parseIO ::  MonadPCF m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
+-- | 
 handleDecl ::  MonadPCF m => SDecl STerm -> m () --Todo ver
-handleDecl d = do
-        let (Decl p x t) = desugarDec d
-        let tt = elab' t
-        tcDecl (Decl p x tt)    
-        te <- eval tt
-        addDecl (Decl p x te)
+handleDecl (STypeAlias p n ty) = do  -- Hacer una funcion que agrupe lo del typechecker?
+                                  mty <- lookupTy n
+                                  dty <- desugarTy ty
+                                  case mty of
+                                    Nothing -> do
+                                      addTy n dty
+                                    Just _  -> failPosPCF p $ n ++" ya está declarado"
+handleDecl decl                = do
+                                  nd <- desugarDec decl
+                                  case nd of
+                                    Just (Decl p x t) -> do
+                                      let tt = elab' t
+                                      tcDecl (Decl p x tt)
+                                      te <- eval tt
+                                      addDecl (Decl p x te)
+                                    _ -> failPosPCF NoPos $ "Error al eliminar el syntactic sugar" --Cambiar error
+
+       -- let (Decl p x t) = desugarDec d -- Quita el azucar sintáctico
+       -- let tt = elab' t                -- Cambia de notación con nombre a índices de Bruijin
+       -- tcDecl (Decl p x tt)            -- typechecker. Si el nombre está declarado failPosPCF, si no lo está lo declara en entorno de tipos global (addTy)
+       -- te <- eval tt                   -- Evaluador CBV
+       -- addDecl (Decl p x te)           -- Agrega la declaración al entorno de declaraciones globales (glb)
 
 data Command = Compile CompileForm
              | Print String
@@ -172,17 +194,22 @@ compilePhrase x =
 
 handleTerm ::  MonadPCF m => STerm -> m ()
 handleTerm t = do
-         let tt = elab t
+          tt <- elab t
+          s <- get -- recupero el entorno
+          ty <- tc tt (tyEnv s)
+          te <- eval tt
+          printPCF (pp te ++ " : " ++ ppTy ty) 
+         {-let tt = elab t
          s <- get
          ty <- tc tt (tyEnv s)
          te <- eval tt
-         printPCF (pp te ++ " : " ++ ppTy ty)
+         printPCF (pp te ++ " : " ++ ppTy ty)-}
 
 printPhrase   :: MonadPCF m => String -> m ()
 printPhrase x =
   do
     sterm <- parseIO "<interactive>" tm x
-    let nterm = desugar sterm
+    nterm <- desugar sterm
     let ex = elab' nterm
     t  <- case nterm of 
            (V p f) -> maybe ex id <$> lookupDecl f
@@ -197,7 +224,7 @@ printPhrase x =
 typeCheckPhrase :: MonadPCF m => String -> m ()
 typeCheckPhrase x = do
          t <- parseIO "<interactive>" tm x
-         let tt = elab t
+         tt <- elab t
          s <- get
          ty <- tc tt (tyEnv s)
          printPCF (ppTy ty)

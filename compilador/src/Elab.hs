@@ -67,14 +67,14 @@ desugar (SLetRec p f [(x, xty)] ty t t') = desugar $ SLet p f [] (SFunTy xty ty)
 desugar (SLetRec p f (x:xs) ty t t') = desugar $ SLetRec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
 
 desugarDec :: MonadPCF m => SDecl STerm -> m (Maybe (Decl NTerm))
-desugarDec (STypeAlias p n t) =  return Nothing{-do
+desugarDec (STypeAlias p n t) =  do
                                   dt <- desugarTy t
                                   mty <- lookupTy n
                                   case mty of
                                     Nothing -> do
                                                 addTy n dt
                                                 return Nothing
-                                    Just _  -> throwError (ErrPos p "ya está declarado")-}
+                                    Just _  -> throwError (ErrPos p "ya está declarado")
 desugarDec (SLetDec p f [] _ t) = do
                                     dt <- desugar t
                                     return $ Just $ Decl p f dt

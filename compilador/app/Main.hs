@@ -89,13 +89,13 @@ parseIO filename p x = case runP p x filename of
 
 -- | 
 handleDecl ::  MonadPCF m => SDecl STerm -> m () --Todo ver
-handleDecl (STypeAlias p n ty) = do  -- Hacer una funcion que agrupe lo del typechecker?
+{-handleDecl (STypeAlias p n ty) = do  -- Hacer una funcion que agrupe lo del typechecker? Creo que va en elab porque no hay que chequear el tipo de ty
                                   mty <- lookupTy n
                                   dty <- desugarTy ty
                                   case mty of
                                     Nothing -> do
                                       addTy n dty
-                                    Just _  -> failPosPCF p $ n ++" ya está declarado"
+                                    Just _  -> failPosPCF p $ n ++" ya está declarado"-}
 handleDecl decl                = do
                                   nd <- desugarDec decl
                                   case nd of
@@ -104,7 +104,7 @@ handleDecl decl                = do
                                       tcDecl (Decl p x tt)
                                       te <- eval tt
                                       addDecl (Decl p x te)
-                                    _ -> failPosPCF NoPos $ "Error al eliminar el syntactic sugar" --Cambiar error
+                                    _ -> return ()--failPosPCF NoPos $ "Error al eliminar el syntactic sugar" --Cambiar error
 
        -- let (Decl p x t) = desugarDec d -- Quita el azucar sintáctico
        -- let tt = elab' t                -- Cambia de notación con nombre a índices de Bruijin

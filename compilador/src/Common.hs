@@ -42,4 +42,5 @@ x |> f = f x
 
 
 --
---data Either3 a b c = Left a | Middle b | Right c
+data Either3 a b c = EDecl a | ETerm b | ETy c
+--data declTermTy a b c = Decl a | Term b | Ty c

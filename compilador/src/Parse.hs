@@ -65,8 +65,14 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
+tyvarP :: P STy
+tyvarP = do
+          v <- tyvar
+          return $ SAliasTy v
+
 tyatom :: P STy
 tyatom = (reserved "Nat" >> return SNatTy)
+         <|> tyvarP
          <|> parens typeP
 
 typeP :: P STy
@@ -82,9 +88,6 @@ Por como esta escrito puede tomar como un nombre valido Nat por que parsea prime
 También no toma cosas como T1.
 Pero me preocupaba más que fuera más permisivo, y que después haya que reescribir ejemplos a que sea poco permisivo...
 -}
-
--- Todo typeAlias
--- TODO desugar types
           
 const :: P Const
 const = CNat <$> num
@@ -205,7 +208,7 @@ termLetRec = do
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> unaryOp <|> fix <|> termLet <|> termLetRec
+tm = app <|> lam <|> ifz <|> unaryOp <|> fix <|> termLetRec <|> termLet
 
 -- | Parser de nombres de variables de tipos
 tyvar :: P Name
@@ -252,7 +255,7 @@ declRec = do
 
 -- | Parser de declaraciones
 decl :: P (SDecl STerm)
-decl = declTySyn <|> declLet <|> declRec
+decl = declTySyn <|> declRec <|> declLet
 
 -- | Parser de programas (listas de declaraciones)
 program :: P [SDecl STerm]

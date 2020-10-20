@@ -16,15 +16,13 @@ module Elab ( elab, elab_decl, desugarTy, desugar, elab', desugarDec ) where
 import Lang
 import Subst
 import MonadPCF
-import Errors
-import Common (Pos(NoPos))
 
 -- | 'desugar' remueve el azúcar sintáctico en un término dado.
 desugar :: MonadPCF m => STerm -> m NTerm
 desugar (SV p v)                   = return $ V p v
 desugar (SConst p c)               = return $ Const p c
-desugar (SUnaryOp p op)            = return $ Lam p "x" NatTy (UnaryOp p op (V p "x"))  -- ver
-desugar (SLam p [] _)              = throwError (ErrPos p "Numero de argumentos incorrecto para Lam") --poner mejor los errores
+desugar (SUnaryOp p op)            = return $ Lam p "x" NatTy (UnaryOp p op (V p "x"))
+desugar (SLam p [] _)              = failPosPCF p "Numero de argumentos incorrecto para Lam"
 desugar (SLam p [b] t)             = do 
                                     ty <- desugarTy (snd b)
                                     tt <- desugar t
@@ -60,30 +58,31 @@ desugar (SLet p v [] ty t t')      = do
                                       dt' <- desugar t'
                                       dt <- desugar t
                                       return $ App p (Lam p v dty dt') dt
---v1desugar (SLet p v [(x, tx)] ty t t') = desugar $ SLet p v [] (FunTy tx ty) (SLam p x tx t) t'
 desugar (SLet p f xs ty t t')      = desugar $ SLet p f [] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
-desugar (SLetRec p _ [] _ _ _ ) = throwError (ErrPos p "Error: LetRec debe tener al menos 1 argumento")
+desugar (SLetRec p _ [] _ _ _ ) = failPosPCF p "Error: LetRec debe tener al menos 1 argumento"
 desugar (SLetRec p f [(x, xty)] ty t t') = desugar $ SLet p f [] (SFunTy xty ty) (SFix p [(f, SFunTy xty ty), (x, xty)] t) t'
 desugar (SLetRec p f (x:xs) ty t t') = desugar $ SLetRec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
 
+-- | Quita el syntactic sugar de una declaración
 desugarDec :: MonadPCF m => SDecl STerm -> m (Maybe (Decl NTerm))
-desugarDec (STypeAlias p n t)            =  do
+desugarDec (STypeAlias p n t)           =  do
                                             dt <- desugarTy t
                                             mty <- lookupTy n
                                             case mty of
                                               Nothing -> do
-                                                          addTy n dt
+                                                          addSynTy n dt
                                                           return Nothing
-                                              Just _  -> throwError (ErrPos p "ya está declarado")
-desugarDec (SLetDec p f [] _ t)          = do
+                                              Just _  -> failPosPCF p "ya está declarado"
+desugarDec (SLetDec p f [] _ t)         = do
                                           dt <- desugar t
                                           return $ Just $ Decl p f dt
 desugarDec (SLetDec p f [x] ty t)       = desugarDec $ SLetDec p f [] (SFunTy (snd x) ty) (SLam p [x] t)
 desugarDec (SLetDec p f (x:xs) ty t)    = desugarDec $ SLetDec p f [] (foldr (\x -> SFunTy (snd x)) ty (x:xs)) (SLam p (x:xs) t)
-desugarDec (SLetRecDec p _ [] _ _)      = throwError (ErrPos p "Let Rec debe tener al menos 1 argumento")
+desugarDec (SLetRecDec p _ [] _ _)      = failPosPCF p "Let Rec debe tener al menos 1 argumento"
 desugarDec (SLetRecDec p f [x] ty t)    = desugarDec $ SLetDec p f [] (SFunTy (snd x) ty) (SFix p [(f, SFunTy (snd x) ty), x] t)
 desugarDec (SLetRecDec p f (x:xs) ty t) = desugarDec $ SLetRecDec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t)
 
+-- | Quita el syntactic sugar de un tipo
 desugarTy :: MonadPCF m => STy -> m Ty
 desugarTy SNatTy = return NatTy
 desugarTy (SFunTy x y) = do 
@@ -91,10 +90,10 @@ desugarTy (SFunTy x y) = do
                             ty <- desugarTy y
                             return $ FunTy tx ty
 desugarTy (SAliasTy n) = do 
-                            ty <- lookupTy n
+                            ty <- lookupSynTy n
                             case ty of 
                               Just t -> return t
-                              Nothing -> throwError (ErrPos NoPos "Alias de tipo no definido") -- TODO Arreglar posición
+                              Nothing -> failPCF "Alias de tipo no definido"
 
 -- | 'elab' transforma variables ligadas en índices de de Bruijn en un término dado. 
 elab' :: NTerm -> Term

@@ -106,41 +106,18 @@ unaryOpName =
           (reserved "succ" >> return Succ)
      <|>  (reserved "pred" >> return Pred)
 
-unaryOpApp :: P STerm --TODO ver si era así
-unaryOpApp = do  i <- getPos
-                 o <- unaryOpName
-                 a <- atom
-                 return (SApp i (SUnaryOp i o) a)
-{-unaryOpApp :: P STerm
-unaryOpApp = do  i <- getPos
-                 o <- unaryOpName
-                 a <- atom
-                 return (SUnaryOp i o a)-}
+unaryOp:: P STerm
+unaryOp = do  i <- getPos
+              o <- unaryOpName
+              return (SUnaryOp i o)
 
-unaryOpNotApp :: P STerm
-unaryOpNotApp = do  i <- getPos
-                    o <- unaryOpName
-                    return (SUnaryOp i o)
-                    --return (SUnaryOpNotApp i o)
-
-unaryOp = unaryOpApp <|> unaryOpNotApp
-{-unaryOp :: P STerm
-unaryOp = do
-  i <- getPos
-  foldr (\(w, r) rest -> try (do 
-                                 reserved w
-                                 a <- atom
-                                 return (r a)) <|> rest) parserZero (mapping i)
-  where
-   mapping i = [
-       ("succ", SUnaryOp i Succ)
-     , ("pred", SUnaryOp i Pred)
-    ]-}
+-- No necesito una regla para el UnaryOp aplicado
+-- porque es redundante con la de aplicación (el no aplicado es un atom)
 
 atom :: P STerm
 atom =     (flip SConst <$> const <*> getPos)
        <|> flip SV <$> var <*> getPos
-       <|> unaryOpNotApp --ver
+       <|> unaryOp
        <|> parens tm
 
 lam :: P STerm

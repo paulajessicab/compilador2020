@@ -67,21 +67,21 @@ desugar (SLetRec p f [(x, xty)] ty t t') = desugar $ SLet p f [] (SFunTy xty ty)
 desugar (SLetRec p f (x:xs) ty t t') = desugar $ SLetRec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
 
 desugarDec :: MonadPCF m => SDecl STerm -> m (Maybe (Decl NTerm))
-desugarDec (STypeAlias p n t) =  do
-                                  dt <- desugarTy t
-                                  mty <- lookupTy n
-                                  case mty of
-                                    Nothing -> do
-                                                addTy n dt
-                                                return Nothing
-                                    Just _  -> throwError (ErrPos p "ya está declarado")
-desugarDec (SLetDec p f [] _ t) = do
-                                    dt <- desugar t
-                                    return $ Just $ Decl p f dt
-desugarDec (SLetDec p f [x] ty t) = desugarDec $ SLetDec p f [] (SFunTy (snd x) ty) (SLam p [x] t)
-desugarDec (SLetDec p f (x:xs) ty t) = desugarDec $ SLetDec p f [] (foldr (\x -> SFunTy (snd x)) ty (x:xs)) (SLam p (x:xs) t)
-desugarDec (SLetRecDec p _ [] _ _) = throwError (ErrPos p "Let Rec debe tener al menos 1 argumento")
-desugarDec (SLetRecDec p f [x] ty t) = desugarDec $ SLetDec p f [] (SFunTy (snd x) ty) (SFix p [(f, SFunTy (snd x) ty), x] t)
+desugarDec (STypeAlias p n t)            =  do
+                                            dt <- desugarTy t
+                                            mty <- lookupTy n
+                                            case mty of
+                                              Nothing -> do
+                                                          addTy n dt
+                                                          return Nothing
+                                              Just _  -> throwError (ErrPos p "ya está declarado")
+desugarDec (SLetDec p f [] _ t)          = do
+                                          dt <- desugar t
+                                          return $ Just $ Decl p f dt
+desugarDec (SLetDec p f [x] ty t)       = desugarDec $ SLetDec p f [] (SFunTy (snd x) ty) (SLam p [x] t)
+desugarDec (SLetDec p f (x:xs) ty t)    = desugarDec $ SLetDec p f [] (foldr (\x -> SFunTy (snd x)) ty (x:xs)) (SLam p (x:xs) t)
+desugarDec (SLetRecDec p _ [] _ _)      = throwError (ErrPos p "Let Rec debe tener al menos 1 argumento")
+desugarDec (SLetRecDec p f [x] ty t)    = desugarDec $ SLetDec p f [] (SFunTy (snd x) ty) (SFix p [(f, SFunTy (snd x) ty), x] t)
 desugarDec (SLetRecDec p f (x:xs) ty t) = desugarDec $ SLetRecDec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t)
 
 desugarTy :: MonadPCF m => STy -> m Ty

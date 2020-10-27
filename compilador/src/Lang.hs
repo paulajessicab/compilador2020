@@ -51,7 +51,7 @@ data STm info var =
   | SLetRec info Name [(Name, STy)] STy (STm info var) (STm info var)
   | SLam info [(Name, STy)] (STm info var)
   | SApp info (STm info var) (STm info var)
-  | SUnaryOp info UnaryOp -- Por ahora el parseo de un unaryOp aplicado a un valor se hace con una aplicación TODO VER
+  | SUnaryOp info UnaryOp -- Por ahora el parseo de un unaryOp aplicado a un valor se hace con una aplicación
   | SFix info [(Name, STy)] (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)
   deriving (Show, Functor)

@@ -17,14 +17,20 @@ Estado final de la forma <<v,[]>>
 
 module CEK where
 
-import Lang 
-import MonadPCF (lookupDecl, MonadPCF, failPosPCF)
+import Lang
+import Common ( Pos(NoPos) )
+import MonadPCF (liftIO,  MonadState(get), failPosPCF, lookupDecl, MonadPCF )
+import TypeChecker ( tc )
+import Global ( GlEnv(tyEnv) ) 
+import Subst ( substN )
 
 type Env = [Val]
 
 data Val = Cons Int | VClos Clos
+    deriving Show
 
-data Clos = ClosFun Env Name Term | ClosFix Env Name Name Term
+data Clos = ClosFun Env Name Term | ClosFix Env Name Ty Name Ty Term
+      deriving Show
 
 data Frame  = KArg Env Term 
             | KClos Clos
@@ -52,10 +58,7 @@ search (V p (Free n)) env k = do
                                   Nothing -> failPosPCF p "No se pudo encontrar el nombre dentro de las declaraciones globales" 
 search (Const _ (CNat n)) _ k = destroy (Cons n) k
 search (Lam _ x _ t) env k = destroy (VClos $ ClosFun env x t) k
-search (Fix _ f _ x _ t) env k = destroy (VClos $ ClosFix env f x t) k
-
--- hacer caso bound (que creo que tengo que sacar el valor del entorno)
--- hacer el caso free (que creo que tengo que buscar el valor global de la mónada)
+search (Fix _ f fty x xty t) env k = destroy (VClos $ ClosFix env f fty x xty t) k
 
 -- | Fase de reducción
 -- | Toma un estado <<v, k>> y, dependiendo de la continuación, opera sobre este valor
@@ -65,7 +68,32 @@ destroy (Cons 0) (KPred:k) = destroy (Cons 0)  k
 destroy (Cons n) (KPred:k) = destroy (Cons (n-1)) k
 destroy (Cons n) (KSucc:k) = destroy (Cons (n+1)) k
 destroy (Cons 0) ((KIfZ env t _):k) = search t env k
+destroy (Cons _) ((KIfZ env _ e):k) = search e env k
 destroy (VClos c) ((KArg env t):k) = search t env ((KClos c):k)
 destroy v (KClos (ClosFun env _ t):k) = search t (v:env) k
-destroy v (KClos(ClosFix env f x t):k) = search t (VClos (ClosFix env f x t):v:env) k
+destroy v (KClos(ClosFix env f fty x xty t):k) = search t (VClos (ClosFix env f fty x xty t):v:env) k
+
+-- | Evaluación de un término usando la máquina CEK
+evalCEK :: MonadPCF m => Term -> m Val
+evalCEK t = search t [] []
+
+-- | Convierte Val a Term
+valToTerm :: MonadPCF m => Val -> m Term
+valToTerm (Cons n) = return $ Const NoPos (CNat n)
+valToTerm (VClos (ClosFun e n t)) = do
+                                    liftIO . putStrLn $ show e
+                                    s <- get
+                                    ty <- tc t (tyEnv s)
+                                    case e of
+                                      [] -> return $ Lam NoPos n ty t
+                                      (s:xs) -> do
+                                        re <- mapM valToTerm (s:xs)
+                                        return $ Lam NoPos n ty (substN (reverse re) t)
+valToTerm (VClos (ClosFix e f fty x xty t)) = do
+                                        liftIO . putStrLn $ show e
+                                        case e of
+                                          [] -> return $ Fix NoPos f fty x xty t
+                                          (s:xs) -> do 
+                                                re <- mapM valToTerm (s:xs)
+                                                return $ Fix NoPos f fty x xty (substN (reverse re) t)
 

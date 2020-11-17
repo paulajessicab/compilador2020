@@ -27,12 +27,13 @@ import Global ( GlEnv(..) )
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab, desugar, desugarTy, desugarDec, elab',desugarDec )
+import Elab ( elab, desugar, desugarDec, elab',desugarDec )
 import Eval ( eval )
+import CEK (evalCEK, valToTerm)
 import PPrint ( pp , ppTy )
 import MonadPCF
 import TypeChecker ( tc, tcDecl )
-import Common (Pos(NoPos))
+import Common ()
 
 prompt :: String
 prompt = "PCF> "
@@ -102,7 +103,8 @@ handleDecl decl                = do
                                     Just (Decl p x t) -> do
                                       let tt = elab' t
                                       tcDecl (Decl p x tt)
-                                      te <- eval tt
+                                      closte <- evalCEK tt
+                                      te <- valToTerm closte 
                                       addDecl (Decl p x te)
                                     _ -> return ()--failPosPCF NoPos $ "Error al eliminar el syntactic sugar" --Cambiar error
 
@@ -189,7 +191,7 @@ compilePhrase x =
   do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of 
-      Left d  -> handleDecl d -- Todo arreglar para que haga el typecheck del STerm
+      Left d  -> handleDecl d -- Todo arreglar para que haga el typecheck del STerm <- no se si este comentario sigue siendo valido jajaja
       Right t -> handleTerm t --Todo acomodar elab y elab'
 
 handleTerm ::  MonadPCF m => STerm -> m ()
@@ -197,13 +199,10 @@ handleTerm t = do
           tt <- elab t
           s <- get -- recupero el entorno
           ty <- tc tt (tyEnv s)
-          te <- eval tt
-          printPCF (pp te ++ " : " ++ ppTy ty) 
-         {-let tt = elab t
-         s <- get
-         ty <- tc tt (tyEnv s)
-         te <- eval tt
-         printPCF (pp te ++ " : " ++ ppTy ty)-}
+          closte <- evalCEK tt
+          te <- valToTerm closte 
+          printPCF (show te ++ " : " ++ ppTy ty)
+          
 
 printPhrase   :: MonadPCF m => String -> m ()
 printPhrase x =

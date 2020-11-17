@@ -73,7 +73,7 @@ substN ns = varChanger (\_ p n -> V p (Free n)) bnd
              | i <  depth = V p (Bound i)
              | i >= depth && i < depth + nns
                 = nsr !! (i - depth)
-             | otherwise = abort "substN: M is not LC"
+             | otherwise = abort $ "substN: M is not LC" ++ (show ns)
          nns = length ns
          nsr = reverse ns
 

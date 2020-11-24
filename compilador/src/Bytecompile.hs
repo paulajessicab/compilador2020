@@ -31,7 +31,7 @@ newtype Bytecode32 = BC { un32 :: [Word32] }
 
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
-  put (BC bs) = mapM_ putWord32le bs
+  put (BC bs) = mapM_ putWord32le bs  --putWord32le: Write a Word32 in little endian format
   get = go 
     where go =  
            do
@@ -69,7 +69,36 @@ pattern DROP     = 13
 pattern PRINT    = 14
 
 bc :: MonadPCF m => Term -> m Bytecode
-bc t = error "implementame"
+bc (Const _ (CNat n)) = return [CONST,n]
+bc (UnaryOp _ unop e) = do
+                          bce <- bc e
+                          case unop of
+                            Succ -> return $ bce ++ [SUCC]   
+                            _    -> return $ bce ++ [PRED]
+bc (V _ (Bound i))    = return [ACCESS, i]
+bc (V l (Free n))     = do 
+                          mterm <- lookupDecl n
+                          case mterm of
+                            Just t -> bc $ t
+                            Nothing -> failPosPCF l ("No se pudo recuperar la declaracion " ++ n)
+bc (App _ f e)        = do 
+                          bcf <- bc f
+                          bce <- bc e
+                          return $ bcf ++ bce ++ [CALL]
+bc (Lam _ _ _ t)      = do 
+                          bct <- bc t
+                          let bct' = bct ++ [RETURN]
+                          return $ [FUNCTION, length bct'] ++ bct'
+bc (Fix _ _ _ _ _ e)  = do 
+                        bce <- bc e
+                        let bce' = bce ++ [RETURN]
+                        return $ [FUNCTION, length bce'] ++ bce' ++ [FIX]
+{-bc (IfZ _ c t1 t2)    = do 
+                          bcc <- bc c
+                          bct1 <- bc t1
+                          bct2 <- bc t2
+                          return $ [IFZ, length bcc] ++ bcc ++ [length bct1] ++ bct1 ++ [length bct2] ++ bct2
+-} -- Creo que la idea es que si es evaluar C(0), si resulta 0 saltar a bct1 y sino a bct2
 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
 bytecompileModule mod = error "implementame"

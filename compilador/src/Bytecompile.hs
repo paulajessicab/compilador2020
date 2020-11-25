@@ -29,6 +29,20 @@ type Module = [Decl Term]
 
 newtype Bytecode32 = BC { un32 :: [Word32] }
 
+type EnvBVM = [Val]
+type StackBVM = [Val]
+data Val = I Int | Fun EnvBVM Bytecode | RA EnvBVM Bytecode
+
+getValEnv :: MonadPCF m => Val -> m EnvBVM
+getValEnv (I n) = failPCF "error"
+getValEnv (Fun e _) = return e
+getValEnv (RA e _) = return e
+
+getValBC :: MonadPCF m => Val -> m Bytecode
+getValBC (I n) = failPCF "error"
+getValBC (Fun _ c) = return c
+getValBC (RA _ c) = return c
+
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
   put (BC bs) = mapM_ putWord32le bs  --putWord32le: Write a Word32 in little endian format
@@ -101,7 +115,24 @@ bc (Fix _ _ _ _ _ e)  = do
 -} -- Creo que la idea es que si es evaluar C(0), si resulta 0 saltar a bct1 y sino a bct2
 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
-bytecompileModule mod = error "implementame"
+bytecompileModule m = do ctp <- bcModuleInner m
+                         return $ ctp ++ [PRINT, STOP]
+
+bcModuleInner :: MonadPCF m => Module -> m Bytecode --type Module = [Decl Term]
+bcModuleInner [] = failPCF ("Módulo vacío")
+bcModuleInner [(Decl _ v e)]    = do 
+                                    bce <- bc e
+                                    tv  <- lookupDecl v
+                                    case tv of
+                                      Nothing -> failPCF "Error"
+                                      Just t  -> do
+                                                  bcv <- bc t
+                                                  return $ bce ++ [SHIFT] ++ bcv ++ [DROP]
+bcModuleInner ((Decl _ v e):xs) = do 
+                                        bce <- bc e
+                                        bcmod <- bcModuleInner xs
+                                        return $ bce ++ [SHIFT] ++ bcmod ++ [DROP]
+
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo 
 bcWrite :: Bytecode -> FilePath -> IO ()
@@ -116,4 +147,37 @@ bcRead :: FilePath -> IO Bytecode
 bcRead filename = map fromIntegral <$> un32  <$> decode <$> BS.readFile filename
 
 runBC :: MonadPCF m => Bytecode -> m ()
-runBC c = error "implementame"
+runBC c = runBC' c [] []
+
+
+
+runBC' :: MonadPCF m => Bytecode -> EnvBVM -> StackBVM -> m ()
+runBC' (CONST : n : cs) e s = runBC' cs e ((I n):s)
+runBC' (SUCC : cs) e (n:s) = do
+                                case n of 
+                                  I m -> runBC' cs e ((I (m+1)):s)
+                                  _   -> failPCF "error"
+runBC' (PRED : cs) e (n:s) = do
+                                case n of 
+                                  I m -> runBC' cs e ((I (m-1)):s)
+                                  _   -> failPCF "error"
+runBC' (ACCESS : i : cs) e (n:s) = runBC' cs e ((e!!i):s)
+runBC' (CALL : cs) e (v:f:s) = do cf <- getValBC f
+                                  ef <- getValEnv f
+                                  runBC' cf (v:ef) ((RA e cs):s)
+runBC' (RETURN : cs) _ (v:raf:s) = do craf <- getValBC raf
+                                      eraf <- getValEnv raf
+                                      runBC' craf eraf (v:s)
+runBC' (SHIFT : cs) e (v:s) = runBC' cs (v:e) s
+runBC' (DROP : cs) (v:e) s = runBC' cs e s
+runBC' (PRINT : cs) e (n:s) = do
+                                case n of
+                                  I m -> printPCF (show m) 
+                                  _   -> failPCF "Error"
+                                runBC' cs e (n:s)
+runBC' (STOP : cs) _ _ = return ()
+
+-- function
+--ifz
+-- fix
+-- jump

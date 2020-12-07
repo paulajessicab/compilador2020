@@ -43,6 +43,10 @@ getValBC (I n) = failPCF "error"
 getValBC (Fun _ c) = return c
 getValBC (RA _ c) = return c
 
+getValInt :: MonadPCF m => Val -> m Int
+getValInt (I n) = return n
+getValInt _ = failPCF "error"
+
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
   put (BC bs) = mapM_ putWord32le bs  --putWord32le: Write a Word32 in little endian format
@@ -82,6 +86,15 @@ pattern SHIFT    = 12
 pattern DROP     = 13
 pattern PRINT    = 14
 
+{-C(\t) = FUNCTION(C(t); RETURN)
+Para serializar el FUNCTION(e) necesito guardar la longitud del
+bytecode de e, para poder saltar.
+
+[Bytecode Function, length(e), bytecode de e]
+-}
+
+
+
 bc :: MonadPCF m => Term -> m Bytecode
 bc (Const _ (CNat n)) = return [CONST,n]
 bc (UnaryOp _ unop e) = do
@@ -95,11 +108,15 @@ bc (V l (Free n))     = do
                           case mterm of
                             Just t -> bc $ t
                             Nothing -> failPosPCF l ("No se pudo recuperar la declaracion " ++ n)
+bc (App _ (Lam _ _ _ e2) e1) = do  -- Caso app especial: Implemento optimización let bindings internos. Como estoy trabajando en Term (PCF0), tomo el desugar.
+                                bce1 <- bc e1
+                                bce2 <- bc e2
+                                return $ bce1 ++ [SHIFT] ++ bce2 ++ [DROP]
 bc (App _ f e)        = do 
                           bcf <- bc f
                           bce <- bc e
                           return $ bcf ++ bce ++ [CALL]
-bc (Lam _ _ _ t)      = do 
+bc (Lam _ _ _ t)      = do --
                           bct <- bc t
                           let bct' = bct ++ [RETURN]
                           return $ [FUNCTION, length bct'] ++ bct'
@@ -107,12 +124,12 @@ bc (Fix _ _ _ _ _ e)  = do
                         bce <- bc e
                         let bce' = bce ++ [RETURN]
                         return $ [FUNCTION, length bce'] ++ bce' ++ [FIX]
-{-bc (IfZ _ c t1 t2)    = do 
+bc (IfZ _ c t0 t1)    = do 
                           bcc <- bc c
+                          bct0 <- bc t0
                           bct1 <- bc t1
-                          bct2 <- bc t2
-                          return $ [IFZ, length bcc] ++ bcc ++ [length bct1] ++ bct1 ++ [length bct2] ++ bct2
--} -- Creo que la idea es que si es evaluar C(0), si resulta 0 saltar a bct1 y sino a bct2
+                          return $ [CONST] ++ bcc ++ [IFZ, length bct0, length bct1] ++ bct0 ++ bct1
+                          --Primero introduzco el nro de la condición, luego las longitudes del bc de los terminos para poder saltar y, por último, los términos
 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
 bytecompileModule m = do ctp <- bcModuleInner m
@@ -165,19 +182,29 @@ runBC' (ACCESS : i : cs) e (n:s) = runBC' cs e ((e!!i):s)
 runBC' (CALL : cs) e (v:f:s) = do cf <- getValBC f
                                   ef <- getValEnv f
                                   runBC' cf (v:ef) ((RA e cs):s)
+runBC' (FUNCTION : lenE : cs) e s = runBC' c e ((Fun e cf):s)
+                                    where c = drop lenE cs
+                                          cf = take lenE cs
 runBC' (RETURN : cs) _ (v:raf:s) = do craf <- getValBC raf
                                       eraf <- getValEnv raf
                                       runBC' craf eraf (v:s)
-runBC' (SHIFT : cs) e (v:s) = runBC' cs (v:e) s
-runBC' (DROP : cs) (v:e) s = runBC' cs e s
 runBC' (PRINT : cs) e (n:s) = do
                                 case n of
                                   I m -> printPCF (show m) 
                                   _   -> failPCF "Error"
                                 runBC' cs e (n:s)
+runBC' (FIX : cs) e (clos:s) = do
+                                  cf <- getValBC clos
+                                  let efix = (Fun efix cf) : e
+                                  runBC' cs e ((Fun efix cf) : s)
+runBC' (SHIFT : cs) e (v:s) = runBC' cs (v:e) s
+runBC' (DROP : cs) (v:e) s = runBC' cs e s
 runBC' (STOP : cs) _ _ = return ()
-
--- function
---ifz
--- fix
--- jump
+runBC' (JUMP : cs) e (n : s) = do
+                                i <- getValInt n 
+                                runBC' (drop i cs) e s
+runBC' (IFZ : lenT0 : lenT1 : cs) e (n : s) = do 
+                                                i <- getValInt n
+                                                case i of 
+                                                  0 -> runBC' ((take lenT0 cs) ++ (drop (lenT0 + lenT1) cs)) e s --ejecuto t0 y salto t1
+                                                  _ -> runBC' (drop lenT0 cs) e s --Salto t0, ejecuto a partir de t1

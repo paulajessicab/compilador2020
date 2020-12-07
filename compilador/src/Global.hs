@@ -12,13 +12,15 @@ module Global where
 import Lang
 
 data GlEnv = GlEnv {
-  inter :: Bool,          --  ^ True, si estamos en modo interactivo.
-  lfile :: String,        -- ^ Último archivo cargado.
-  glb :: [Decl Term],     -- ^ Entorno con declaraciones globales
+  inter :: Bool,           --  ^ True, si estamos en modo interactivo.
+  lfile :: String,         -- ^ Último archivo cargado.
+  glb :: [Decl Term],      -- ^ Entorno con declaraciones globales
   tyEnv :: [(Name,Ty)],    -- ^ Entorno de tipado de declaraciones globales
   synTyEnv :: [(Name,Ty)] -- ^ Entorno de tipado de declaraciones de sinónimos de tipo
+  --bcEnv :: [(Name,Ty)],    -- ^ Entorno de la máquina Bytecompile
+  --bcStack :: [(Name,Ty)]   -- ^ Stack de la máquina Bytecompile
 }
 
 -- | Valor del estado inicial
 initialEnv :: GlEnv
-initialEnv = GlEnv True "" [] [] []
+initialEnv = GlEnv True "" [] [] [] --[] []

@@ -77,6 +77,7 @@ data Tm info var =
     V info var
   | Const info Const
   | Lam info Name Ty (Tm info var)
+  | Let info Name (Tm info var) (Tm info var) -- implementacion let-binding interna
   | App info (Tm info var) (Tm info var)
   | UnaryOp info UnaryOp (Tm info var)
   | Fix info Name Ty Name Ty (Tm info var)

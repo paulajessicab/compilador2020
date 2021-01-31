@@ -11,7 +11,7 @@ Este módulo permite elaborar términos y declaraciones para convertirlas desde
 fully named (@NTerm) a locally closed (@Term@) 
 -}
 
-module Elab ( elab, elab_decl, desugarTy, desugar, elab', desugarDec ) where
+module Elab ( elab, desugarTy, desugar, elab', desugarDec, elabDecl, elabDeclModule ) where
 
 import Lang
 import Subst
@@ -53,12 +53,12 @@ desugar (SIfZ p c t e)             =  do
                                       dt <- desugar t
                                       de <- desugar e
                                       return $ IfZ p dc dt de
-desugar (SLet p v [] ty t t')      = do
-                                      dty <- desugarTy ty
+desugar (SLet p v [] _ t t')      = do
+                                     -- dty <- desugarTy ty
                                       dt' <- desugar t'
                                       dt <- desugar t
-                                      return $ App p (Lam p v dty dt') dt
-desugar (SLet p f xs ty t t')      = desugar $ SLet p f [] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
+                                      return $ Let p v dt dt' -- implementacion let-binding interno 
+desugar (SLet p f xs ty t t')      = desugar $ SLet p f [] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'-- Esto creo que queda igual
 desugar (SLetRec p _ [] _ _ _ ) = failPosPCF p "Error: LetRec debe tener al menos 1 argumento"
 desugar (SLetRec p f [(x, xty)] ty t t') = desugar $ SLet p f [] (SFunTy xty ty) (SFix p [(f, SFunTy xty ty), (x, xty)] t) t'
 desugar (SLetRec p f (x:xs) ty t t') = desugar $ SLetRec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
@@ -104,6 +104,7 @@ elab' (App p h a)           = App p (elab' h) (elab' a)
 elab' (Fix p f fty x xty t) = Fix p f fty x xty (closeN [f, x] (elab' t))
 elab' (IfZ p c t e)         = IfZ p (elab' c) (elab' t) (elab' e)
 elab' (UnaryOp i o t)       = UnaryOp i o (elab' t)
+elab' (Let p v e1 e2)       = Let p v (elab' e1) (close v (elab' e2)) 
 
 {-
 El original era equivalente a
@@ -117,12 +118,24 @@ Ahora desugarDec debería poder devolver: Nothing, Just Decl NTerm o Error
 Como tengo que seguir teniendo en cuenta los errores que pueden surgir en desugarDec,
 tengo que usar la MonadError
 -}
-elab_decl :: MonadPCF m => SDecl STerm -> m (Maybe (Decl Term))
-elab_decl sd = do 
+elabDecl :: MonadPCF m => SDecl STerm -> m (Maybe (Decl Term))
+elabDecl sd = do 
                 nd <- desugarDec sd
                 case nd of
                   Just d -> return $ Just $ fmap elab' d
-                  Nothing -> return $ Nothing
+                  Nothing -> return Nothing
+
+elabDeclModule :: MonadPCF m => [SDecl STerm] -> m [Decl Term]
+elabDeclModule [] = failPCF "No code to elab"
+elabDeclModule [x] = do
+                        dx <- elabDecl x
+                        case dx of
+                          Nothing -> failPCF "Error al armar modulo"
+                          Just d -> return [d]  --do --addDecl fmap elab' 
+elabDeclModule (x:xs) = do
+                          elabx <- elabDeclModule [x]
+                          elabxs <- elabDeclModule xs
+                          return $ elabx ++ elabxs
 
 elab :: MonadPCF m => STerm -> m Term
 elab st = do

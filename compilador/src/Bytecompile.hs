@@ -21,9 +21,11 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Binary ( Word32, Binary(put, get), decode, encode )
 import Data.Binary.Put ( putWord32le )
 import Data.Binary.Get ( getWord32le, isEmpty )
+import TypeChecker
 
 type Opcode = Int
 type Bytecode = [Int]
+
 type Module = [Decl Term]
 
 
@@ -31,7 +33,7 @@ newtype Bytecode32 = BC { un32 :: [Word32] }
 
 type EnvBVM = [Val]
 type StackBVM = [Val]
-data Val = I Int | Fun EnvBVM Bytecode | RA EnvBVM Bytecode
+data Val = I Int | Fun EnvBVM Bytecode | RA EnvBVM Bytecode deriving Show
 
 getValEnv :: MonadPCF m => Val -> m EnvBVM
 getValEnv (I n) = failPCF "error"
@@ -103,15 +105,11 @@ bc (UnaryOp _ unop e) = do
                             Succ -> return $ bce ++ [SUCC]   
                             _    -> return $ bce ++ [PRED]
 bc (V _ (Bound i))    = return [ACCESS, i]
-bc (V l (Free n))     = do 
-                          mterm <- lookupDecl n
-                          case mterm of
-                            Just t -> bc $ t
-                            Nothing -> failPosPCF l ("No se pudo recuperar la declaracion " ++ n)
-bc (App _ (Lam _ _ _ e2) e1) = do  -- Caso app especial: Implemento optimización let bindings internos. Como estoy trabajando en Term (PCF0), tomo el desugar.
-                                bce1 <- bc e1
-                                bce2 <- bc e2
-                                return $ bce1 ++ [SHIFT] ++ bce2 ++ [DROP]
+bc (V l (Free n))     = failPCF "No estamos trabajando con variables globales"
+bc (Let _ _ e1 e2) = do  
+                          bce2 <- bc e2
+                          bce1 <- bc e1
+                          return $ bce1 ++ [SHIFT] ++ bce2 ++ [DROP]
 bc (App _ f e)        = do 
                           bcf <- bc f
                           bce <- bc e
@@ -123,33 +121,24 @@ bc (Lam _ _ _ t)      = do --
 bc (Fix _ _ _ _ _ e)  = do 
                         bce <- bc e
                         let bce' = bce ++ [RETURN]
-                        return $ [FUNCTION, length bce'] ++ bce' ++ [FIX]
-bc (IfZ _ c t0 t1)    = do 
+                        return $ [FUNCTION, length bce'] ++ bce' ++ [FIX] -- ver si va +1 en el largo
+bc (IfZ _ c t0 t1)    = do --Primero introduzco el nro de la condición, luego las longitudes del bc de los terminos para poder saltar y, por último, los términos
                           bcc <- bc c
                           bct0 <- bc t0
                           bct1 <- bc t1
-                          return $ [CONST] ++ bcc ++ [IFZ, length bct0, length bct1] ++ bct0 ++ bct1
-                          --Primero introduzco el nro de la condición, luego las longitudes del bc de los terminos para poder saltar y, por último, los términos
+                          return $ bcc ++ [IFZ, (length bct0) + 2] ++ bct0 ++ [JUMP, (length bct1)] ++ bct1
 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
-bytecompileModule m = do ctp <- bcModuleInner m
+bytecompileModule m = do minn <- bcModuleInner m
+                         printPCF $ show minn
+                         ctp <- bc minn
                          return $ ctp ++ [PRINT, STOP]
 
-bcModuleInner :: MonadPCF m => Module -> m Bytecode --type Module = [Decl Term]
-bcModuleInner [] = failPCF ("Módulo vacío")
-bcModuleInner [(Decl _ v e)]    = do 
-                                    bce <- bc e
-                                    tv  <- lookupDecl v
-                                    case tv of
-                                      Nothing -> failPCF "Error"
-                                      Just t  -> do
-                                                  bcv <- bc t
-                                                  return $ bce ++ [SHIFT] ++ bcv ++ [DROP]
-bcModuleInner ((Decl _ v e):xs) = do 
-                                        bce <- bc e
-                                        bcmod <- bcModuleInner xs
-                                        return $ bce ++ [SHIFT] ++ bcmod ++ [DROP]
-
+bcModuleInner :: MonadPCF m => Module -> m Term
+bcModuleInner [] = failPCF "No code to load"
+bcModuleInner [Decl p v e] = return $ Let p v e (close v e)
+bcModuleInner ((Decl p v e):xs) = do mxs <- bcModuleInner xs
+                                     return $ Let p v e (close v mxs)
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo 
 bcWrite :: Bytecode -> FilePath -> IO ()
@@ -169,42 +158,69 @@ runBC c = runBC' c [] []
 
 
 runBC' :: MonadPCF m => Bytecode -> EnvBVM -> StackBVM -> m ()
-runBC' (CONST : n : cs) e s = runBC' cs e ((I n):s)
+runBC' (CONST : n : cs) e s = do printPCF "code CONST"
+                                 printPCF $ show cs
+                                 runBC' cs e ((I n):s)
 runBC' (SUCC : cs) e (n:s) = do
                                 case n of 
-                                  I m -> runBC' cs e ((I (m+1)):s)
-                                  _   -> failPCF "error"
+                                  I m -> do printPCF "code SUCC"
+                                            printPCF $ show cs
+                                            runBC' cs e ((I (m+1)):s)
+                                  _   -> failPCF "errorrunBC"
 runBC' (PRED : cs) e (n:s) = do
                                 case n of 
-                                  I m -> runBC' cs e ((I (m-1)):s)
-                                  _   -> failPCF "error"
-runBC' (ACCESS : i : cs) e (n:s) = runBC' cs e ((e!!i):s)
-runBC' (CALL : cs) e (v:f:s) = do cf <- getValBC f
+                                  I m -> do printPCF "code PRED"
+                                            printPCF $ show cs
+                                            runBC' cs e ((I (m-1)):s)
+                                  _   -> failPCF "errorrunBC"
+runBC' (ACCESS : i : cs) e s = do printPCF "code ACCESS"
+                                  printPCF $ show cs
+                                  runBC' cs e ((e!!i):s)
+runBC' (CALL : cs) e (v:f:s) = do --printPCF  "pre call"
+                                  --printPCF $ show cs
+                                  cf <- getValBC f
                                   ef <- getValEnv f
+                                  printPCF  "code CALL"
+                                  printPCF $ show cf
                                   runBC' cf (v:ef) ((RA e cs):s)
-runBC' (FUNCTION : lenE : cs) e s = runBC' c e ((Fun e cf):s)
-                                    where c = drop lenE cs
-                                          cf = take lenE cs
-runBC' (RETURN : cs) _ (v:raf:s) = do craf <- getValBC raf
-                                      eraf <- getValEnv raf
-                                      runBC' craf eraf (v:s)
+runBC' (FUNCTION : lenE : cs) e s = do printPCF "code FUN"
+                                       printPCF $ show c
+                                       runBC' c e ((Fun e cf):s)
+                                       where c = drop lenE cs
+                                             cf = take lenE cs
+runBC' (RETURN : _) _ (v:raf:s) = do craf <- getValBC raf
+                                     eraf <- getValEnv raf
+                                     printPCF "code RETURN"
+                                     printPCF $ show craf
+                                     runBC' craf eraf (v:s)
 runBC' (PRINT : cs) e (n:s) = do
                                 case n of
                                   I m -> printPCF (show m) 
-                                  _   -> failPCF "Error"
+                                  _   -> failPCF "ErrorrunBC"
+                                printPCF "code PRINT"
+                                printPCF $ show cs
                                 runBC' cs e (n:s)
 runBC' (FIX : cs) e (clos:s) = do
                                   cf <- getValBC clos
+                                  printPCF "code FIX"
+                                  printPCF $ show cs
                                   let efix = (Fun efix cf) : e
                                   runBC' cs e ((Fun efix cf) : s)
-runBC' (SHIFT : cs) e (v:s) = runBC' cs (v:e) s
-runBC' (DROP : cs) (v:e) s = runBC' cs e s
+runBC' (SHIFT : cs) e (v:s) = do printPCF "code SHIFT"
+                                 printPCF $ show cs
+                                 runBC' cs (v:e) s
+runBC' (DROP : cs) (_:e) s = do printPCF "code DROP"
+                                printPCF $ show cs
+                                runBC' cs e s
 runBC' (STOP : cs) _ _ = return ()
-runBC' (JUMP : cs) e (n : s) = do
-                                i <- getValInt n 
-                                runBC' (drop i cs) e s
-runBC' (IFZ : lenT0 : lenT1 : cs) e (n : s) = do 
-                                                i <- getValInt n
-                                                case i of 
-                                                  0 -> runBC' ((take lenT0 cs) ++ (drop (lenT0 + lenT1) cs)) e s --ejecuto t0 y salto t1
-                                                  _ -> runBC' (drop lenT0 cs) e s --Salto t0, ejecuto a partir de t1
+runBC' (JUMP : c : cs) e s = runBC' (drop c cs) e s
+runBC' (IFZ : lenT0' : cs) e (n : s) = do        
+                                          i <- getValInt n
+                                          case i of
+                                            0 -> do printPCF "code ifz"
+                                                    printPCF $ show cs
+                                                    runBC' cs e s --ejecuto t0 y salto t1 con el JUMP del final
+                                            _ -> do printPCF "code ifz"
+                                                    printPCF $ show (drop lenT0' cs)
+                                                    runBC' (drop lenT0' cs) e s --Salto t0', ejecuto a partir de t1
+runBC' _ _ _ = do failPCF "Failed to run code"

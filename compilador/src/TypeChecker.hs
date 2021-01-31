@@ -9,7 +9,8 @@ Stability   : experimental
 -}
 module TypeChecker (
    tc,
-   tcDecl 
+   tcDecl,
+   tyEnv 
    ) where
 
 import Lang

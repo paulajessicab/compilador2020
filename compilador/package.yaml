@@ -26,7 +26,11 @@ dependencies:
 - pretty
 - mtl
 - exceptions
-
+- optparse-applicative
+- ghc
+- hspec
+- binary
+- bytestring
 
 library:
   source-dirs: src

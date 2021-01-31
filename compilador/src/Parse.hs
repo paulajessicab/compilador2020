@@ -17,7 +17,6 @@ import Text.Parsec hiding (runP)
 import Data.Char ( isNumber, ord )
 import qualified Text.Parsec.Token as Tok
 import Text.ParserCombinators.Parsec.Language ( GenLanguageDef(..), emptyDef )
-
 type P = Parsec String ()
 
 -----------------------

@@ -51,7 +51,9 @@ data STm info var =
   | SLetRec info Name [(Name, STy)] STy (STm info var) (STm info var)
   | SLam info [(Name, STy)] (STm info var)
   | SApp info (STm info var) (STm info var)
-  | SUnaryOp info UnaryOp -- Por ahora el parseo de un unaryOp aplicado a un valor se hace con una aplicación
+  | SSum info (STm info var) (STm info var)
+  | SDiff info (STm info var) (STm info var) 
+  | SUnaryOp info UnaryOp -- El parseo de un unaryOp aplicado a un valor se hace con una aplicación
   | SFix info [(Name, STy)] (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)
   deriving (Show, Functor)
@@ -79,6 +81,8 @@ data Tm info var =
   | Lam info Name Ty (Tm info var)
   | Let info Name (Tm info var) (Tm info var) -- implementacion let-binding interna
   | App info (Tm info var) (Tm info var)
+  | Sum info (Tm info var) (Tm info var)
+  | Diff info (Tm info var) (Tm info var)
   | UnaryOp info UnaryOp (Tm info var)
   | Fix info Name Ty Name Ty (Tm info var)
   | IfZ info (Tm info var) (Tm info var) (Tm info var)

@@ -22,6 +22,12 @@ desugar :: MonadPCF m => STerm -> m NTerm
 desugar (SV p v)                   = return $ V p v
 desugar (SConst p c)               = return $ Const p c
 desugar (SUnaryOp p op)            = return $ Lam p "x" NatTy (UnaryOp p op (V p "x"))
+desugar (SSum p a b)               = do da <- desugar a
+                                        db <- desugar b
+                                        return $ Sum p da db
+desugar (SDiff p a b)              = do da <- desugar a
+                                        db <- desugar b
+                                        return $ Diff p da db
 desugar (SLam p [] _)              = failPosPCF p "Numero de argumentos incorrecto para Lam"
 desugar (SLam p [b] t)             = do 
                                     ty <- desugarTy (snd b)
@@ -62,6 +68,7 @@ desugar (SLet p f xs ty t t')      = desugar $ SLet p f [] (foldr (\x -> SFunTy 
 desugar (SLetRec p _ [] _ _ _ ) = failPosPCF p "Error: LetRec debe tener al menos 1 argumento"
 desugar (SLetRec p f [(x, xty)] ty t t') = desugar $ SLet p f [] (SFunTy xty ty) (SFix p [(f, SFunTy xty ty), (x, xty)] t) t'
 desugar (SLetRec p f (x:xs) ty t t') = desugar $ SLetRec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
+desugar _ = failPCF "Error en la etapa de desugar"
 
 -- | Quita el syntactic sugar de una declaración
 desugarDec :: MonadPCF m => SDecl STerm -> m (Maybe (Decl NTerm))
@@ -100,6 +107,8 @@ elab' :: NTerm -> Term
 elab' (V p v)               = V p (Free v)
 elab' (Const p c)           = Const p c
 elab' (Lam p v ty t)        = Lam p v ty (close v (elab' t))
+elab' (Sum p a b)           = Sum p (elab' a) (elab' b)
+elab' (Diff p a b)          = Diff p (elab' a) (elab' b)
 elab' (App p h a)           = App p (elab' h) (elab' a)
 elab' (Fix p f fty x xty t) = Fix p f fty x xty (closeN [f, x] (elab' t))
 elab' (IfZ p c t e)         = IfZ p (elab' c) (elab' t) (elab' e)

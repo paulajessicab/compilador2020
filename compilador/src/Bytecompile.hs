@@ -87,6 +87,8 @@ pattern JUMP     = 11
 pattern SHIFT    = 12
 pattern DROP     = 13
 pattern PRINT    = 14
+pattern ADD      = 15
+pattern SUB      = 16
 
 {-C(\t) = FUNCTION(C(t); RETURN)
 Para serializar el FUNCTION(e) necesito guardar la longitud del
@@ -104,6 +106,13 @@ bc (UnaryOp _ unop e) = do
                           case unop of
                             Succ -> return $ bce ++ [SUCC]   
                             _    -> return $ bce ++ [PRED]
+-- Escribo la suma y la resta con notacion polaca inversa
+bc (Sum _ a b) = do bca <- bc a
+                    bcb <- bc b
+                    return $ bca ++ bcb ++ [ADD]
+bc (Diff _ a b) = do bca <- bc a
+                     bcb <- bc b
+                     return $ bca ++ bcb ++ [SUB]
 bc (V _ (Bound i))    = return [ACCESS, i]
 bc (V l (Free n))     = failPCF "No estamos trabajando con variables globales"
 bc (Let _ _ e1 e2) = do  
@@ -127,6 +136,7 @@ bc (IfZ _ c t0 t1)    = do --Primero introduzco el nro de la condición, luego l
                           bct0 <- bc t0
                           bct1 <- bc t1
                           return $ bcc ++ [IFZ, (length bct0) + 2] ++ bct0 ++ [JUMP, (length bct1)] ++ bct1
+--bc _ = failPCF "Error al generar bytecode"
 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
 bytecompileModule m = do minn <- bcModuleInner m
@@ -173,6 +183,15 @@ runBC' (PRED : cs) e (n:s) = do
                                             printPCF $ show cs
                                             runBC' cs e ((I (m-1)):s)
                                   _   -> failPCF "errorrunBC"
+-- La suma y la resta estan en notacion polaca inversa
+-- Tomo los dos ultimos elementos del stack, los saca, los suma/resta
+-- y pushea el resultado. Tener en cuenta para la resta que se sacan al reves
+runBC' (ADD : cs) e (a:b:s) = do case (a,b) of
+                                  (I n, I m) -> do runBC' cs e $ I (m + n):s
+                                  _ -> failPCF "Error al ejecutar la operacion ADD"
+runBC' (SUB : cs) e (a:b:s) = do case (a,b) of
+                                  (I n, I m) -> do runBC' cs e $ I (m - n):s
+                                  _ -> failPCF "Error al ejecutar la operacion SUB"
 runBC' (ACCESS : i : cs) e s = do printPCF "code ACCESS"
                                   printPCF $ show cs
                                   runBC' cs e ((e!!i):s)

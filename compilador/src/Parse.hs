@@ -27,15 +27,15 @@ lexer :: Tok.TokenParser u
 lexer = Tok.makeTokenParser $
         emptyDef {
          commentLine    = "#",
-         reservedNames = ["let", "fun", "fix", "then", "else", 
+         reservedNames = ["let", "fun", "fix", "then", "else",
                           "succ", "pred", "ifz", "Nat", "in", "let rec", "type"],
-         reservedOpNames = ["->",":","="]
+         reservedOpNames = ["->",":","=","+","-"]
         }
 
 whiteSpace :: P ()
 whiteSpace = Tok.whiteSpace lexer
 
-natural :: P Integer 
+natural :: P Integer
 natural = Tok.natural lexer
 
 parens :: P a -> P a
@@ -58,7 +58,7 @@ num :: P Int
 num = fromInteger <$> natural
 
 var :: P Name
-var = identifier 
+var = identifier
 
 getPos :: P Pos
 getPos = do pos <- getPosition
@@ -66,8 +66,7 @@ getPos = do pos <- getPosition
 
 tyvarP :: P STy
 tyvarP = do
-          v <- tyvar
-          return $ SAliasTy v
+          SAliasTy <$> tyvar
 
 tyatom :: P STy
 tyatom = (reserved "Nat" >> return SNatTy)
@@ -75,11 +74,10 @@ tyatom = (reserved "Nat" >> return SNatTy)
          <|> parens typeP
 
 typeP :: P STy
-typeP = try (do 
+typeP = try (do
           x <- tyatom
           reservedOp "->"
-          y <- typeP
-          return (SFunTy x y))
+          SFunTy x <$> typeP)
       <|> tyatom
 
 {-Ver de tyvar
@@ -87,7 +85,7 @@ Por como esta escrito puede tomar como un nombre valido Nat por que parsea prime
 También no toma cosas como T1.
 Pero me preocupaba más que fuera más permisivo, y que después haya que reescribir ejemplos a que sea poco permisivo...
 -}
-          
+
 const :: P Const
 const = CNat <$> num
 
@@ -98,7 +96,7 @@ binding = do v <- var
              return (v, ty)
 
 binders :: P [(Name, STy)]
-binders = many $ parens $ binding
+binders = many $ parens binding
 
 unaryOpName :: P UnaryOp
 unaryOpName =
@@ -107,32 +105,41 @@ unaryOpName =
 
 unaryOp:: P STerm
 unaryOp = do  i <- getPos
-              o <- unaryOpName
-              return (SUnaryOp i o)
+              SUnaryOp i <$> unaryOpName
 
 -- No necesito una regla para el UnaryOp aplicado
 -- porque es redundante con la de aplicación (el no aplicado es un atom)
 
 atom :: P STerm
-atom =     (flip SConst <$> const <*> getPos)
+atom =     flip SConst <$> const <*> getPos
        <|> flip SV <$> var <*> getPos
        <|> unaryOp
        <|> parens tm
 
+
+binop :: P STerm
+binop = do i <- getPos
+           a <- atom
+           (do reservedOp "+"
+               b <- atom
+               return $ SSum i a b
+            <|> do reservedOp "-"
+                   b <- atom
+                   return $ SDiff i a b)
+                   
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
          bs <- binders
          reservedOp "->"
-         t <- tm
-         return (SLam i bs t)
+         SLam i bs <$> tm
 
 -- Nota el parser app también parsea un solo atom.
 app :: P STerm
-app = (do i <- getPos
-          f <- atom
-          args <- many atom
-          return (foldl (SApp i) f args))
+app = do i <- getPos
+         f <- atom
+         args <- many atom
+         return (foldl (SApp i) f args)
 
 ifz :: P STerm
 ifz = do i <- getPos
@@ -141,20 +148,18 @@ ifz = do i <- getPos
          reserved "then"
          t <- tm
          reserved "else"
-         e <- tm
-         return (SIfZ i c t e)
+         SIfZ i c t <$> tm
 
 fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
          bs <- binders
          reservedOp "->"
-         t <- tm
-         return (SFix i bs t)
+         SFix i bs <$> tm
 
 -- | Parser de términos let
 termLet :: P STerm
-termLet = do 
+termLet = do
      i <- getPos
      reserved "let"
      v <- var
@@ -164,12 +169,11 @@ termLet = do
      reservedOp "="
      t <- tm
      reservedOp "in"
-     t' <- tm
-     return (SLet i v bs ty t t')
+     SLet i v bs ty t <$> tm
 
 -- | Parser de términos let recursivos
 termLetRec :: P STerm
-termLetRec = do 
+termLetRec = do
      i <- getPos
      reserved "let rec"
      v <- var
@@ -179,12 +183,11 @@ termLetRec = do
      reservedOp "="
      t <- tm
      reservedOp "in"
-     t' <- tm
-     return (SLetRec i v bs ty t t')
+     SLetRec i v bs ty t <$> tm
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> unaryOp <|> fix <|> termLetRec <|> termLet
+tm = binop <|> app <|> lam <|> ifz <|> unaryOp <|> fix <|> termLetRec <|> termLet 
 
 -- | Parser de nombres de variables de tipos
 tyvar :: P Name
@@ -200,12 +203,11 @@ declTySyn = do
      reserved "type"
      tn <- tyvar
      reservedOp "="
-     ty <- typeP
-     return (STypeAlias i tn ty)
+     STypeAlias i tn <$> typeP
 
 -- | Parser de declaraciones let
 declLet :: P (SDecl STerm)
-declLet = do 
+declLet = do
      i <- getPos
      reserved "let"
      v <- var
@@ -213,12 +215,11 @@ declLet = do
      reservedOp ":"
      ty <- typeP
      reservedOp "="
-     t <- tm
-     return (SLetDec i v bs ty t)
+     SLetDec i v bs ty <$> tm
 
 -- | Parser de declaraciones recursivas
 declRec :: P (SDecl STerm)
-declRec = do 
+declRec = do
      i <- getPos
      reserved "let rec"
      v <- var
@@ -226,8 +227,7 @@ declRec = do
      reservedOp ":"
      ty <- typeP
      reservedOp "="
-     t <- tm
-     return (SLetRecDec i v bs ty t)
+     SLetRecDec i v bs ty <$> tm
 
 -- | Parser de declaraciones
 decl :: P (SDecl STerm)
@@ -240,7 +240,7 @@ program = many decl
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
 declOrTm :: P (Either (SDecl STerm) STerm)
-declOrTm =  try (Right <$> tm) <|> (Left <$> decl)
+declOrTm =  try (Right <$> tm) <|> Left <$> decl
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
 -- p parser, x cadena a parsear, filename

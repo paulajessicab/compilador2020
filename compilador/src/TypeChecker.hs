@@ -58,15 +58,11 @@ tc (Fix p f fty x xty t) bs = do
          ty' <- tc t' ((x,xty):(f,fty):bs)
          expect cod ty' t'
          return fty
-tc (Sum p a b) bs = do tya <- tc a bs
-                       expect NatTy tya a
-                       tyb <- tc b bs
-                       expect NatTy tyb b
-                       return NatTy
-tc (Diff p a b) bs = do tya <- tc a bs
-                        expect NatTy tya a
-                        tyb <- tc b bs
-                        expect NatTy tyb b
+tc (BinaryOp p u t t') bs = do 
+                        ty <- tc t bs
+                        expect NatTy ty t
+                        ty' <- tc t' bs
+                        expect NatTy ty' t'
                         return NatTy
 tc _ _ = return NatTy  --- TODO!! Esto està mal, falta el let
 

@@ -89,6 +89,7 @@ pattern DROP     = 13
 pattern PRINT    = 14
 pattern ADD      = 15
 pattern SUB      = 16
+pattern TAILCALL = 17
 
 {-C(\t) = FUNCTION(C(t); RETURN)
 Para serializar el FUNCTION(e) necesito guardar la longitud del
@@ -107,12 +108,12 @@ bc (UnaryOp _ unop e) = do
                             Succ -> return $ bce ++ [SUCC]   
                             _    -> return $ bce ++ [PRED]
 -- Escribo la suma y la resta con notacion polaca inversa
-bc (Sum _ a b) = do bca <- bc a
-                    bcb <- bc b
-                    return $ bca ++ bcb ++ [ADD]
-bc (Diff _ a b) = do bca <- bc a
-                     bcb <- bc b
-                     return $ bca ++ bcb ++ [SUB]
+bc (BinaryOp _ op a b) = do 
+                            bca <- bc a
+                            bcb <- bc b
+                            case op of
+                              Add -> return $ bca ++ bcb ++ [ADD]
+                              _   -> return $ bca ++ bcb ++ [SUB]
 bc (V _ (Bound i))    = return [ACCESS, i]
 bc (V l (Free n))     = failPCF "No estamos trabajando con variables globales"
 bc (Let _ _ e1 e2) = do  
@@ -123,10 +124,17 @@ bc (App _ f e)        = do
                           bcf <- bc f
                           bce <- bc e
                           return $ bcf ++ bce ++ [CALL]
-bc (Lam _ _ _ t)      = do --
+bc (Lam _ _ _ t)      = do 
+                          bct <- tailbc t
+                          let bct' = bct ++ [RETURN]
+                          return $ [FUNCTION, length bct'] ++ bct'
+{-
+--Antes de tailcall
+bc (Lam _ _ _ t)      = do 
                           bct <- bc t
                           let bct' = bct ++ [RETURN]
                           return $ [FUNCTION, length bct'] ++ bct'
+-}
 bc (Fix _ _ _ _ _ e)  = do 
                         bce <- bc e
                         let bce' = bce ++ [RETURN]
@@ -137,6 +145,26 @@ bc (IfZ _ c t0 t1)    = do --Primero introduzco el nro de la condición, luego l
                           bct1 <- bc t1
                           return $ bcc ++ [IFZ, (length bct0) + 2] ++ bct0 ++ [JUMP, (length bct1)] ++ bct1
 --bc _ = failPCF "Error al generar bytecode"
+
+tailbc :: MonadPCF m => Term -> m Bytecode
+tailbc (App _ f e)      = do 
+                          bcf <- bc f
+                          bce <- bc e
+                          return $ bcf ++ bce ++ [TAILCALL]
+tailbc (IfZ _ c t0 t1)  = do
+                          bcc <- bc c
+                          tbct0 <- tailbc t0
+                          tbct1 <- tailbc t1
+                          return $ bcc ++ [IFZ, (length tbct0) + 2] ++ tbct0 ++ [JUMP, (length tbct1)] ++ tbct1
+tailbc (Let _ _ e1 e2)  = do  
+                          bce1 <- bc e1
+                          tbce2 <- tailbc e2
+                          return $ bce1 ++ [SHIFT] ++ tbce2
+tailbc t                = do 
+                          bct <- bc t
+                          return $ bct ++ [RETURN]
+                           
+
 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
 bytecompileModule m = do minn <- bcModuleInner m
@@ -202,6 +230,13 @@ runBC' (CALL : cs) e (v:f:s) = do --printPCF  "pre call"
                                   printPCF  "code CALL"
                                   printPCF $ show cf
                                   runBC' cf (v:ef) ((RA e cs):s)
+runBC' (TAILCALL : cs) e (v:f:s) = do --printPCF  "pre call"
+                                  --printPCF $ show cs
+                                  cf <- getValBC f
+                                  ef <- getValEnv f
+                                  printPCF  "code CALL"
+                                  printPCF $ show cf
+                                  runBC' cf (v:ef) s
 runBC' (FUNCTION : lenE : cs) e s = do printPCF "code FUN"
                                        printPCF $ show c
                                        runBC' c e ((Fun e cf):s)

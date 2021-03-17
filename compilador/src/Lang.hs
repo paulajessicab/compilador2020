@@ -29,6 +29,9 @@ data Const = CNat !Int
 data UnaryOp = Succ | Pred
   deriving Show
 
+data BinaryOp = Add | Sub
+  deriving Show
+
 -- | Shallow Types AST
 data STy = 
       SNatTy
@@ -54,6 +57,7 @@ data STm info var =
   | SSum info (STm info var) (STm info var)
   | SDiff info (STm info var) (STm info var) 
   | SUnaryOp info UnaryOp -- El parseo de un unaryOp aplicado a un valor se hace con una aplicación
+  | SBinaryOp info BinaryOp -- El parseo de un binaryOp aplicado a un valor se hace con una aplicación
   | SFix info [(Name, STy)] (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)
   deriving (Show, Functor)
@@ -81,8 +85,7 @@ data Tm info var =
   | Lam info Name Ty (Tm info var)
   | Let info Name (Tm info var) (Tm info var) -- implementacion let-binding interna
   | App info (Tm info var) (Tm info var)
-  | Sum info (Tm info var) (Tm info var)
-  | Diff info (Tm info var) (Tm info var)
+  | BinaryOp info BinaryOp (Tm info var) (Tm info var)
   | UnaryOp info UnaryOp (Tm info var)
   | Fix info Name Ty Name Ty (Tm info var)
   | IfZ info (Tm info var) (Tm info var) (Tm info var)
@@ -104,6 +107,7 @@ getInfo (Const i _) = i
 getInfo (Lam i _ _ _) = i
 getInfo (App i _ _ ) = i
 getInfo (UnaryOp i _ _) = i
+getInfo (BinaryOp i _ _ _) = i
 getInfo (Fix i _ _ _ _ _) = i
 getInfo (IfZ i _ _ _) = i
 
@@ -114,6 +118,7 @@ freeVars (V _ _)           = []
 freeVars (Lam _ _ _ t)     = freeVars t
 freeVars (App _ l r)       = freeVars l ++ freeVars r
 freeVars (UnaryOp _ _ t)   = freeVars t
+freeVars (BinaryOp _ _ l r) = freeVars l ++ freeVars r
 freeVars (Fix _ _ _ _ _ t) = freeVars t
 freeVars (IfZ _ c t e)     = freeVars c ++ freeVars t ++ freeVars e
 freeVars (Const _ _)       = []

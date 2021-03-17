@@ -28,8 +28,8 @@ lexer = Tok.makeTokenParser $
         emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "fun", "fix", "then", "else",
-                          "succ", "pred", "ifz", "Nat", "in", "let rec", "type"],
-         reservedOpNames = ["->",":","=","+","-"]
+                          "succ", "pred", "add", "sub", "ifz", "Nat", "in", "let rec", "type"],
+         reservedOpNames = ["->",":","="] ---"+","-"
         }
 
 whiteSpace :: P ()
@@ -104,29 +104,28 @@ unaryOpName =
      <|>  (reserved "pred" >> return Pred)
 
 unaryOp:: P STerm
-unaryOp = do  i <- getPos
-              SUnaryOp i <$> unaryOpName
+unaryOp = do i <- getPos
+             SUnaryOp i <$> unaryOpName
 
 -- No necesito una regla para el UnaryOp aplicado
 -- porque es redundante con la de aplicación (el no aplicado es un atom)
+
+binOpName :: P BinaryOp
+binOpName =
+          (reserved "add" >> return Add)
+     <|>  (reserved "sub" >> return Sub)
+
+binOp:: P STerm
+binOp = do i <- getPos
+           SBinaryOp i <$> binOpName
 
 atom :: P STerm
 atom =     flip SConst <$> const <*> getPos
        <|> flip SV <$> var <*> getPos
        <|> unaryOp
+       <|> binOp
        <|> parens tm
-
-
-binop :: P STerm
-binop = do i <- getPos
-           a <- atom
-           (do reservedOp "+"
-               b <- atom
-               return $ SSum i a b
-            <|> do reservedOp "-"
-                   b <- atom
-                   return $ SDiff i a b)
-                   
+       
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
@@ -187,7 +186,7 @@ termLetRec = do
 
 -- | Parser de términos
 tm :: P STerm
-tm = binop <|> app <|> lam <|> ifz <|> unaryOp <|> fix <|> termLetRec <|> termLet 
+tm = app <|> lam <|> ifz <|> unaryOp <|> fix <|> termLetRec <|> termLet 
 
 -- | Parser de nombres de variables de tipos
 tyvar :: P Name

@@ -22,12 +22,7 @@ desugar :: MonadPCF m => STerm -> m NTerm
 desugar (SV p v)                   = return $ V p v
 desugar (SConst p c)               = return $ Const p c
 desugar (SUnaryOp p op)            = return $ Lam p "x" NatTy (UnaryOp p op (V p "x"))
-desugar (SSum p a b)               = do da <- desugar a
-                                        db <- desugar b
-                                        return $ Sum p da db
-desugar (SDiff p a b)              = do da <- desugar a
-                                        db <- desugar b
-                                        return $ Diff p da db
+desugar (SBinaryOp p op)           = return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p op (V p "x") (V p "y"))
 desugar (SLam p [] _)              = failPosPCF p "Numero de argumentos incorrecto para Lam"
 desugar (SLam p [b] t)             = do 
                                     ty <- desugarTy (snd b)
@@ -107,8 +102,7 @@ elab' :: NTerm -> Term
 elab' (V p v)               = V p (Free v)
 elab' (Const p c)           = Const p c
 elab' (Lam p v ty t)        = Lam p v ty (close v (elab' t))
-elab' (Sum p a b)           = Sum p (elab' a) (elab' b)
-elab' (Diff p a b)          = Diff p (elab' a) (elab' b)
+elab' (BinaryOp p op a b)   = BinaryOp p op (elab' a) (elab' b)
 elab' (App p h a)           = App p (elab' h) (elab' a)
 elab' (Fix p f fty x xty t) = Fix p f fty x xty (closeN [f, x] (elab' t))
 elab' (IfZ p c t e)         = IfZ p (elab' c) (elab' t) (elab' e)

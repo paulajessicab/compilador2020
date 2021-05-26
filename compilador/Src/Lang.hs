@@ -86,7 +86,7 @@ data Tm info var =
   | Let info Name (Tm info var) (Tm info var) -- implementacion let-binding interna
   | App info (Tm info var) (Tm info var)
   | BinaryOp info BinaryOp (Tm info var) (Tm info var)
-  | UnaryOp info UnaryOp (Tm info var)
+  -- | UnaryOp info UnaryOp (Tm info var)
   | Fix info Name Ty Name Ty (Tm info var)
   | IfZ info (Tm info var) (Tm info var) (Tm info var)
   deriving (Show, Functor)
@@ -106,7 +106,7 @@ getInfo (V i _) = i
 getInfo (Const i _) = i
 getInfo (Lam i _ _ _) = i
 getInfo (App i _ _ ) = i
-getInfo (UnaryOp i _ _) = i
+-- getInfo (UnaryOp i _ _) = i
 getInfo (BinaryOp i _ _ _) = i
 getInfo (Fix i _ _ _ _ _) = i
 getInfo (IfZ i _ _ _) = i
@@ -117,7 +117,7 @@ freeVars (V _ (Free v))    = [v]
 freeVars (V _ _)           = []
 freeVars (Lam _ _ _ t)     = freeVars t
 freeVars (App _ l r)       = freeVars l ++ freeVars r
-freeVars (UnaryOp _ _ t)   = freeVars t
+-- freeVars (UnaryOp _ _ t)   = freeVars t
 freeVars (BinaryOp _ _ l r) = freeVars l ++ freeVars r
 freeVars (Fix _ _ _ _ _ t) = freeVars t
 freeVars (IfZ _ c t e)     = freeVars c ++ freeVars t ++ freeVars e

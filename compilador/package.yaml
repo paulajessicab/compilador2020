@@ -38,7 +38,7 @@ library:
 executables:
   compiladores-exe:
     main:                Main.hs
-    source-dirs:         app
+    source-dirs:         App
     ghc-options:
     - -threaded
     - -rtsopts
@@ -54,7 +54,7 @@ executables:
 tests:
   compiladores-test:
     main:                Spec.hs
-    source-dirs:         test
+    source-dirs:         Test
     ghc-options:
     - -threaded
     - -rtsopts

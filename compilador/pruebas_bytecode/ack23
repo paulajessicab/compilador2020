@@ -1,0 +1,11 @@
+let ackermann : Nat -> Nat -> Nat =
+	fix (ack : Nat -> Nat -> Nat) (m : Nat) ->
+	  fun (n : Nat) ->
+	    ifz
+	      m
+	    then
+	      succ n
+	    else
+	      ifz n then ack (pred m) 1 else ack (pred m) (ack m (pred n))
+
+let total : Nat = ackermann 2 3

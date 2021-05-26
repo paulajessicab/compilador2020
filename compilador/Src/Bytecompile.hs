@@ -22,6 +22,9 @@ import Data.Binary ( Word32, Binary(put, get), decode, encode )
 import Data.Binary.Put ( putWord32le )
 import Data.Binary.Get ( getWord32le, isEmpty )
 import TypeChecker
+import Debug.Trace
+
+debug = flip trace
 
 type Opcode = Int
 type Bytecode = [Int]
@@ -102,11 +105,12 @@ bytecode de e, para poder saltar.
 
 bc :: MonadPCF m => Term -> m Bytecode
 bc (Const _ (CNat n)) = return [CONST,n]
-bc (UnaryOp _ unop e) = do
+{-bc (UnaryOp _ unop e) = do
                           bce <- bc e
                           case unop of
                             Succ -> return $ bce ++ [SUCC]   
                             _    -> return $ bce ++ [PRED]
+                            -}
 -- Escribo la suma y la resta con notacion polaca inversa
 bc (BinaryOp _ op a b) = do 
                             bca <- bc a
@@ -144,7 +148,6 @@ bc (IfZ _ c t0 t1)    = do --Primero introduzco el nro de la condición, luego l
                           bct0 <- bc t0
                           bct1 <- bc t1
                           return $ bcc ++ [IFZ, (length bct0) + 2] ++ bct0 ++ [JUMP, (length bct1)] ++ bct1
---bc _ = failPCF "Error al generar bytecode"
 
 tailbc :: MonadPCF m => Term -> m Bytecode
 tailbc (App _ f e)      = do 
@@ -168,8 +171,7 @@ tailbc t                = do
 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
 bytecompileModule m = do minn <- bcModuleInner m
-                         printPCF $ show minn
-                         ctp <- bc minn
+                         ctp <- bc minn --`debug` ("bytecompileModule " ++ show minn)
                          return $ ctp ++ [PRINT, STOP]
 
 bcModuleInner :: MonadPCF m => Module -> m Term
@@ -193,88 +195,54 @@ bcRead filename = map fromIntegral <$> un32  <$> decode <$> BS.readFile filename
 runBC :: MonadPCF m => Bytecode -> m ()
 runBC c = runBC' c [] []
 
-
-
 runBC' :: MonadPCF m => Bytecode -> EnvBVM -> StackBVM -> m ()
-runBC' (CONST : n : cs) e s = do printPCF "code CONST"
-                                 printPCF $ show cs
-                                 runBC' cs e ((I n):s)
+runBC' (CONST : n : cs) e s = do runBC' cs e ((I n):s) --`debug` ("code CONST "++show cs)
 runBC' (SUCC : cs) e (n:s) = do
                                 case n of 
-                                  I m -> do printPCF "code SUCC"
-                                            printPCF $ show cs
-                                            runBC' cs e ((I (m+1)):s)
+                                  I m -> do runBC' cs e ((I (m+1)):s) --`debug` ("code SUCC "++show cs)
                                   _   -> failPCF "errorrunBC"
 runBC' (PRED : cs) e (n:s) = do
                                 case n of 
-                                  I m -> do printPCF "code PRED"
-                                            printPCF $ show cs
-                                            runBC' cs e ((I (m-1)):s)
+                                  I m -> do runBC' cs e ((I (m-1)):s) --`debug` ("code PRED "++show cs)
                                   _   -> failPCF "errorrunBC"
 -- La suma y la resta estan en notacion polaca inversa
 -- Tomo los dos ultimos elementos del stack, los saca, los suma/resta
 -- y pushea el resultado. Tener en cuenta para la resta que se sacan al reves
 runBC' (ADD : cs) e (a:b:s) = do case (a,b) of
-                                  (I n, I m) -> do runBC' cs e $ I (m + n):s
+                                  (I n, I m) -> do runBC' cs e $ I (m + n):s --`debug` ("code ADD "++show cs)
                                   _ -> failPCF "Error al ejecutar la operacion ADD"
 runBC' (SUB : cs) e (a:b:s) = do case (a,b) of
-                                  (I n, I m) -> do runBC' cs e $ I (m - n):s
+                                  (I n, I m) -> do runBC' cs e $ I (m - n):s --`debug` ("code SUB "++show cs)
                                   _ -> failPCF "Error al ejecutar la operacion SUB"
-runBC' (ACCESS : i : cs) e s = do printPCF "code ACCESS"
-                                  printPCF $ show cs
-                                  runBC' cs e ((e!!i):s)
-runBC' (CALL : cs) e (v:f:s) = do --printPCF  "pre call"
-                                  --printPCF $ show cs
-                                  cf <- getValBC f
+runBC' (ACCESS : i : cs) e s = do runBC' cs e ((e!!i):s) --`debug` ("code ACCESS "++show cs)
+runBC' (CALL : cs) e (v:f:s) = do cf <- getValBC f
                                   ef <- getValEnv f
-                                  printPCF  "code CALL"
-                                  printPCF $ show cf
-                                  runBC' cf (v:ef) ((RA e cs):s)
-runBC' (TAILCALL : cs) e (v:f:s) = do --printPCF  "pre call"
-                                  --printPCF $ show cs
-                                  cf <- getValBC f
-                                  ef <- getValEnv f
-                                  printPCF  "code CALL"
-                                  printPCF $ show cf
-                                  runBC' cf (v:ef) s
-runBC' (FUNCTION : lenE : cs) e s = do printPCF "code FUN"
-                                       printPCF $ show c
-                                       runBC' c e ((Fun e cf):s)
+                                  runBC' cf (v:ef) ((RA e cs):s) --`debug` ("pre CALL "++show cs++ " post CALL " ++ show cf)
+runBC' (TAILCALL : cs) e (v:f:s) = do cf <- getValBC f
+                                      ef <- getValEnv f
+                                      runBC' cf (v:ef) s --`debug` ("pre TAILCALL "++show cs++ " post TAILCALL " ++ show cf)
+runBC' (FUNCTION : lenE : cs) e s = do runBC' c e ((Fun e cf):s) --`debug` ("code FUN "++show c)
                                        where c = drop lenE cs
                                              cf = take lenE cs
 runBC' (RETURN : _) _ (v:raf:s) = do craf <- getValBC raf
                                      eraf <- getValEnv raf
-                                     printPCF "code RETURN"
-                                     printPCF $ show craf
-                                     runBC' craf eraf (v:s)
+                                     runBC' craf eraf (v:s) --`debug` ("code RETURN "++show craf)
 runBC' (PRINT : cs) e (n:s) = do
                                 case n of
                                   I m -> printPCF (show m) 
                                   _   -> failPCF "ErrorrunBC"
-                                printPCF "code PRINT"
-                                printPCF $ show cs
-                                runBC' cs e (n:s)
+                                runBC' cs e (n:s) --`debug` ("code PRINT "++show cs)
 runBC' (FIX : cs) e (clos:s) = do
                                   cf <- getValBC clos
-                                  printPCF "code FIX"
-                                  printPCF $ show cs
                                   let efix = (Fun efix cf) : e
-                                  runBC' cs e ((Fun efix cf) : s)
-runBC' (SHIFT : cs) e (v:s) = do printPCF "code SHIFT"
-                                 printPCF $ show cs
-                                 runBC' cs (v:e) s
-runBC' (DROP : cs) (_:e) s = do printPCF "code DROP"
-                                printPCF $ show cs
-                                runBC' cs e s
+                                  runBC' cs e ((Fun efix cf) : s) --`debug` ("code FIX "++show cs)
+runBC' (SHIFT : cs) e (v:s) = do runBC' cs (v:e) s --`debug` ("code SHIFT "++show cs)
+runBC' (DROP : cs) (_:e) s = do runBC' cs e s --`debug` ("code DROP "++show cs)
 runBC' (STOP : cs) _ _ = return ()
 runBC' (JUMP : c : cs) e s = runBC' (drop c cs) e s
 runBC' (IFZ : lenT0' : cs) e (n : s) = do        
                                           i <- getValInt n
                                           case i of
-                                            0 -> do printPCF "code ifz"
-                                                    printPCF $ show cs
-                                                    runBC' cs e s --ejecuto t0 y salto t1 con el JUMP del final
-                                            _ -> do printPCF "code ifz"
-                                                    printPCF $ show (drop lenT0' cs)
-                                                    runBC' (drop lenT0' cs) e s --Salto t0', ejecuto a partir de t1
+                                            0 -> do runBC' cs e s --`debug` ("code IFZ " ++ show cs) --ejecuto t0 y salto t1 con el JUMP del final
+                                            _ -> do runBC' (drop lenT0' cs) e s  --`debug` ("code IFZ " ++ show (drop lenT0' cs))  --Salto t0', ejecuto a partir de t1
 runBC' _ _ _ = do failPCF "Failed to run code"

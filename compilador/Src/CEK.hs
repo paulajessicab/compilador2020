@@ -46,8 +46,8 @@ type Kont = [Frame]
 -- | Fase de búsqueda
 -- | Toma un estado <t,env,k> y, analizando el término t, va construyendo la continuación hasta encontrar un valor
 search :: MonadPCF m => Term -> Env -> Kont -> m Val
-search (UnaryOp _ Pred t) env k = search t env (KPred : k) 
-search (UnaryOp _ Succ t) env k = search t env (KSucc : k) 
+--search (UnaryOp _ Pred t) env k = search t env (KPred : k) 
+--search (UnaryOp _ Succ t) env k = search t env (KSucc : k)
 search (IfZ _ c t e) env k = search c env ((KIfZ env t e) : k)
 search (App _ t u) env k = search t env ((KArg env u) : k)
 search (V _ (Bound i)) env k = destroy (env!!i) k

@@ -91,14 +91,14 @@ bytecompileFile f = do
                     printPCF "error"
                     return []
       Just d -> do
-                  printPCF "decls: \n"
-                  printPCF $ show d
+                  --printPCF "decls: \n"
+                  --printPCF $ show d
                   ptm <- sModuleToModule d
-                  printPCF "\nmodule: \n"
-                  printPCF $ show ptm
+                  --printPCF "\nmodule: \n"
+                  --printPCF $ show ptm
                   btc <- bytecompileModule ptm
-                  printPCF "\nbytecode: \n"
-                  printPCF $ show btc
+                  --printPCF "\nbytecode: \n"
+                  --printPCF $ show btc
                   return btc
 
 

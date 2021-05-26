@@ -50,7 +50,9 @@ openAll (Fix p f fty x xty t) =
     let ([f', x'], t') = openRename [f, x] t in
     Fix p f' fty x' xty (openAll t')
 openAll (IfZ p c t e) = IfZ p (openAll c) (openAll t) (openAll e)
-openAll (UnaryOp i o t) = UnaryOp i o (openAll t)
+--openAll (UnaryOp i o t) = UnaryOp i o (openAll t)
+
+-- TODO: do for binary op
 
 -- | Pretty printer de nombres (Doc)
 name2doc :: Name -> Doc
@@ -117,9 +119,11 @@ t2doc at (IfZ _ c t e) =
       , text "then", nest 2 (t2doc False t)
       , text "else", nest 2 (t2doc False e) ]
 
-t2doc at (UnaryOp _ o t) =
-  parenIf at $
-  unary2doc o <+> t2doc True t
+--t2doc at (UnaryOp _ o t) =
+--  parenIf at $
+--  unary2doc o <+> t2doc True t
+
+--TODO: hacer para binaryop
 
 binding2doc (x, ty) =
   parens (sep [name2doc x, text ":", ty2doc ty])

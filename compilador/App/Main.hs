@@ -27,12 +27,14 @@ import Elab ( desugarDec, elab',desugarDec )
 import MonadPCF
 import TypeChecker ( tcDecl )
 import Common ()
+import ClosureConversion
 --import System.Console.Haskeline ( defaultSettings, runInputT )
 
 data Mode = Interactive
           | Typecheck
           | Bytecompile
           | Run
+          | ClosureConversion
 
 -- | Parser de banderas
 parseMode :: Parser Mode
@@ -40,6 +42,7 @@ parseMode =
   flag' Typecheck ( long "typecheck" <> short 't' <> help "Solo chequear tipos")
   <|> flag' Bytecompile (long "bytecompile" <> short 'c' <> help "Compilar a la BVM")
   <|> flag' Run (long "run" <> short 'r' <> help "Ejecutar bytecode en la BVM")
+  <|> flag' ClosureConversion (long "cc" <> help "Imprimir resultado luego de cc y hoisting")
   <|> flag Interactive Interactive ( long "interactive" <> short 'i'
                                                         <> help "Ejecutar en forma interactiva" )
 
@@ -56,12 +59,47 @@ go (Bytecompile, files) = do runPCF (bytecompileFiles files)
                              return ()
 go (Run,files) = do runPCF (runFiles files)
                     return ()
+go (ClosureConversion, files) = do x <- runPCF (closureConvertFiles files)
+                                   return  ()
 
 main :: IO ()
 main = execParser opts >>= go
   where
     opts = info (parseArgs <**> helper) ( fullDesc <> progDesc "Compilador de PCF" <> header "Compilador de PCF de la materia Compiladores 2020" )
 
+-- | Toma una lista de nombres de archivos, los va leyendo
+-- | e "imprime" el resultado de la conversion de clausuras y el hoisting
+closureConvertFiles :: MonadPCF m =>  [String] -> m ()--[[IrDecl]]
+closureConvertFiles [] = return ()
+closureConvertFiles (x:xs) = do
+                            cc <- closureConvertFile x
+                            closureConvertFiles xs
+
+-- | Toma un nombre de archivo, lo lee y retorna su conversion de clausuras
+closureConvertFile :: MonadPCF m => String -> m [IrDecl]
+closureConvertFile f = do
+    printPCF ("Abriendo "++f++"...")
+    let filename = reverse(dropWhile isSpace (reverse f))
+    x <- liftIO $ catch (readFile filename) 
+               (\e -> do let err = show (e :: IOException) 
+                         hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
+                         return "")
+    decls <- catchErrors (parseIO filename program x)
+    case decls of
+      Nothing -> do 
+                    printPCF "error"
+                    return []
+      Just d -> do
+                  printPCF "SDecls: \n"
+                  printPCF $ show d
+                  ptm <- sModuleToModule d
+                  printPCF "\nDecls: \n"
+                  printPCF $ show ptm
+                  --btc <- runCC ptm
+                  --printPCF "\nClosureConversion: \n"
+                  --printPCF $ show btc
+                  --return btc
+                  return []
 
 -- | Toma una lista de nombres de archivos, los va leyendo
 -- | y guardando los archivos con el bytecode correspondiente

@@ -21,7 +21,6 @@ import MonadPCF
 desugar :: MonadPCF m => STerm -> m NTerm
 desugar (SV p v)                   = return $ V p v
 desugar (SConst p c)               = return $ Const p c
---desugar (SUnaryOp p op)            = return $ Lam p "x" NatTy (UnaryOp p op (V p "x"))
 desugar (SUnaryOp p op)            = case op of
                                         Succ -> return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p Add (V p "x") (Const p (CNat 1)))
                                         _    -> return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p Sub (V p "x") (Const p (CNat 1)))
@@ -35,13 +34,15 @@ desugar (SLam p (b:bs) t)          = do
                                     ty <- desugarTy $ snd b
                                     term <- desugar $ SLam p bs t
                                     return $ Lam p (fst b) ty term
---desugar (SApp p (SUnaryOp _ op) a)= return $ UnaryOp p op t                                   
-desugar (SApp p (SUnaryOp _ op) a)= do   
+desugar (SApp p (SUnaryOp _ op) a) = do   
                                       t <- desugar a
                                       case op of
                                         Succ -> return $ BinaryOp p Add t (Const p (CNat 1))
                                         _    -> return $ BinaryOp p Sub t (Const p (CNat 1))
-                                      
+desugar (SApp p (SApp _ (SBinaryOp _ op) a) b) = do
+                                                  da <- desugar a
+                                                  db <- desugar b
+                                                  return $ BinaryOp p op da db
 desugar (SApp p h a)               = do
                                       dh <- desugar h
                                       da <- desugar a

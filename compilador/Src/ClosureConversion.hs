@@ -28,10 +28,12 @@ data IrTm   = IrVar Name
             | IrAccess IrTm Int
             deriving Show
 
-closureConvert :: Term -> StateT Int (Writer [IrDecl]) IrTm --abrir los terminos con open
+-- | Realiza la conversion de clausuras y el hoisting de las funciones
+closureConvert :: Term -> StateT Int (Writer [IrDecl]) IrTm
 closureConvert (V p (Free n))          = return $ IrVar n
-closureConvert (V p (Bound i))       = do return $ IrVar "pp"
-          -- Quiero que todas las funciones terminen en top level => no deberia haber variables bindeadas                                
+closureConvert (V p (Bound i))       = undefined
+-- Caso Bound: Todas las funciones deben terminar siendo top level, es decir, que no van a tener variables bindeadas
+-- TODO: tirar error si entro en este caso
 closureConvert (Const p c)             = return $ IrConst c
 closureConvert (Let p n t0 t1)         = do
                                             ct0 <- closureConvert t0
@@ -51,54 +53,34 @@ closureConvert (App p f x)             = do
                                             cf <- closureConvert f
                                             cx <- closureConvert x
                                             return $ IrLet clos cf $ IrCall (IrAccess (IrVar clos) 0) [IrVar clos, cx]
+                                            -- Todo: ver si lo puedo optimizar para las aplicaciones como esta en el ejemplo
                                             --return $ IrCall (IrAccess (IrVar fn) 0) ([(IrVar fn), cx])
 closureConvert fun@(Lam p n ty t)          = do
                                             codef <- fresh ""
                                             varName <- fresh n
-                                            ct <- closureConvert (open varName t) `debug` ("CC Lambda t: "++show t)
-                                            cloName <- fresh "clo" `debug` ("CC Lambda ct: "++show ct)
+                                            ct <- closureConvert (open varName t)
+                                            cloName <- fresh "clo"
                                             -- No hay que considerar las variables globales, los terminos siempre son cerrados hasta que abrimos de a uno a la vez
-                                            -- ver si el indice siempre es uno, ver si hay que sacar los globales
                                             innerTerm <- closureRefs cloName ct fv
                                             tell [IrFun codef 2 [cloName, varName] innerTerm]
-                                            {-case fv of 
-                                              [] -> tell [IrFun codef 2 [cloName, varName] ct]
-                                              [x]  -> tell [IrFun codef 2 [cloName, varName] (IrLet x (IrAccess (IrVar cloName) 1) ct)]
-                                              (x:xs) -> tell [] `debug` ("CC Lambda : me meti por aca")-}
                                             return $ MkClosure codef (IrVar <$> fv) 
                                               where fv = freeVars fun
 closureConvert (Fix p n0 ty0 n1 ty1 t) = undefined
 
-
+-- | Toma el nombre de una clausura, un termino y una lista ordenada de nombres de variables libres
+-- | Retorna el IrTm que contiene el termino y las referencias a esas variables dentro de la clausura
 closureRefs :: Monad m => Name -> IrTm -> [Name] -> m IrTm
---hacerLets cloName t fv = return $ hacerLets' cloName t 1 fv
---hacerLets cloName t fv = return $ fst $ foldl (fc cloName) (t, 1) fv `debug` ("Hacer lets: "++show fv)
 closureRefs cloName t fv = return $ fst $ foldr (fc cloName) (t, length fv) fv
                               where fc cloName n (term, i) = (IrLet n (IrAccess (IrVar cloName) i) term, i-1)
 
-
-hacerLets' :: Name -> IrTm -> Int -> [Name] -> IrTm
-hacerLets' cloName t counter [] = t
-hacerLets' cloName t counter [x] = IrLet x (IrAccess (IrVar cloName) counter) t
-hacerLets' cloName t counter (x:xs) = IrLet x (IrAccess (IrVar cloName) counter) (hacerLets' cloName t (counter + 1) xs)
-  
-
-
-  --return $ foldr (\x y -> fc cloName fv x y) t fv 
-
---fc :: Name -> Name -> (IrTm, Int)  -> (IrTm, Int)
---fc cloName n (term, i) = (IrLet n (IrAccess (IrVar cloName) i) term, i-1)--(fromJust $ elemIndex n fv)) term
-
-
-
-
-
+-- | Toma un string y genera un nombre nuevo a partir de una monada de estados
 fresh :: Monad m => String -> StateT Int m Name
 fresh n = do
             s <- get
             put (s+1)
             return $ "__" ++ n ++ (show s)
 
+-- | Toma una lista de declaraciones y aplica la conversion de clausura a cada una
 ccDecls :: [Decl Term] -> StateT Int (Writer [IrDecl]) ()
 ccDecls [] = return ()
 ccDecls ((Decl p n a):xs) = do 
@@ -107,5 +89,6 @@ ccDecls ((Decl p n a):xs) = do
                               ccDecls xs
                               return ()
 
+-- | Ejecuta la conversion de clausuras a partir del estado 0
 runCC :: MonadPCF m => [Decl Term] -> m [IrDecl]
 runCC dt  = return $ execWriter $ evalStateT (ccDecls dt) 0

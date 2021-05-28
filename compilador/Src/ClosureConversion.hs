@@ -31,7 +31,7 @@ data IrTm   = IrVar Name
 -- | Realiza la conversion de clausuras y el hoisting de las funciones
 closureConvert :: Term -> StateT Int (Writer [IrDecl]) IrTm
 closureConvert (V p (Free n))          = return $ IrVar n
-closureConvert (V p (Bound i))       = undefined
+closureConvert (V p (Bound i))       = undefined  `debug` ("Ups, entre en bound")
 -- Caso Bound: Todas las funciones deben terminar siendo top level, es decir, que no van a tener variables bindeadas
 -- TODO: tirar error si entro en este caso
 closureConvert (Const p c)             = return $ IrConst c
@@ -56,16 +56,24 @@ closureConvert (App p f x)             = do
                                             -- Todo: ver si lo puedo optimizar para las aplicaciones como esta en el ejemplo
                                             --return $ IrCall (IrAccess (IrVar fn) 0) ([(IrVar fn), cx])
 closureConvert fun@(Lam p n ty t)          = do
+                                              codef <- fresh ""
+                                              varName <- fresh n
+                                              ct <- closureConvert (open varName t)
+                                              cloName <- fresh "clo"
+                                              -- No hay que considerar las variables globales, los terminos siempre son cerrados hasta que abrimos de a uno a la vez
+                                              innerTerm <- closureRefs cloName ct fv
+                                              tell [IrFun codef 2 [cloName, varName] innerTerm]
+                                              return $ MkClosure codef (IrVar <$> fv) 
+                                                where fv = freeVars fun
+closureConvert f@(Fix p n0 ty0 n1 ty1 t) = do 
                                             codef <- fresh ""
-                                            varName <- fresh n
-                                            ct <- closureConvert (open varName t)
+                                            varName <- fresh n0
+                                            n1f <- fresh n1
+                                            ct <- closureConvert (openN [varName, n1f] t)
                                             cloName <- fresh "clo"
-                                            -- No hay que considerar las variables globales, los terminos siempre son cerrados hasta que abrimos de a uno a la vez
-                                            innerTerm <- closureRefs cloName ct fv
-                                            tell [IrFun codef 2 [cloName, varName] innerTerm]
+                                            tell [IrFun codef 2 [cloName, n1f] (IrLet varName (IrVar cloName) ct)] 
                                             return $ MkClosure codef (IrVar <$> fv) 
-                                              where fv = freeVars fun
-closureConvert (Fix p n0 ty0 n1 ty1 t) = undefined
+                                                where fv = freeVars f
 
 -- | Toma el nombre de una clausura, un termino y una lista ordenada de nombres de variables libres
 -- | Retorna el IrTm que contiene el termino y las referencias a esas variables dentro de la clausura

@@ -95,10 +95,10 @@ closureConvertFile f = do
                   ptm <- sModuleToModule d
                   printPCF "\nDecls: \n"
                   printPCF $ show ptm
-                  --btc <- runCC ptm
-                  --printPCF "\nClosureConversion: \n"
-                  --printPCF $ show btc
-                  --return btc
+                  btc <- runCC ptm
+                  printPCF "\nClosureConversion: \n"
+                  printPCF $ show btc
+                  return btc
                   return []
 
 -- | Toma una lista de nombres de archivos, los va leyendo

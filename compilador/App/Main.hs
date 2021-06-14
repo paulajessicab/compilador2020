@@ -19,22 +19,44 @@ import Data.Char ( isSpace )
 import Control.Exception ( catch , IOException )
 import System.IO ( stderr, hPutStr )
 import Options.Applicative
+import Control.Monad.Catch (MonadMask)
+import Data.List (nub,  intersperse, isPrefixOf )
 import Bytecompile
 import Errors
 import Lang
-import Parse ( P, program, runP )
-import Elab ( desugarDec, elab',desugarDec )
+import Parse ( P, tm, program, declOrTm, runP )
+import Global ( GlEnv(..) )
+import Elab ( elab, desugar, desugarDec, elab',desugarDec )
+import Eval ( eval )
+import TypeChecker ( tc, tcDecl )
+import PPrint ( pp , ppTy )
 import MonadPCF
-import TypeChecker ( tcDecl )
 import Common ()
 import ClosureConversion
---import System.Console.Haskeline ( defaultSettings, runInputT )
+import System.Console.Haskeline ( defaultSettings, getInputLine, runInputT, InputT )
+import CEK (evalCEK, valToTerm)
 
 data Mode = Interactive
           | Typecheck
           | Bytecompile
           | Run
           | ClosureConversion
+
+data Command = Compile CompileForm
+             | Print String
+             | Type String
+             | Browse
+             | Quit
+             | Help
+             | Noop
+
+data CompileForm = CompileInteractive  String
+                 | CompileFile         String
+
+data InteractiveCommand = Cmd [String] String (String -> Command) String
+
+prompt :: String
+prompt = "PCF> "
 
 -- | Parser de banderas
 parseMode :: Parser Mode
@@ -50,9 +72,14 @@ parseMode =
 parseArgs :: Parser (Mode,[FilePath])
 parseArgs = (,) <$> parseMode <*> many (argument str (metavar "FILES..."))
 
+main :: IO ()
+main = execParser opts >>= go
+  where
+    opts = info (parseArgs <**> helper) ( fullDesc <> progDesc "Compilador de PCF" <> header "Compilador de PCF de la materia Compiladores 2020" )
+
 go :: (Mode,[FilePath]) -> IO ()
 go (Interactive,files) = do
-                          --runPCF (runInputT defaultSettings (repl files))  --repl :: (MonadPCF m, MonadMask m) => [String] -> InputT m ()
+                          runPCF (runInputT defaultSettings (repl files))
                           return ()
 go (Typecheck, files) = undefined
 go (Bytecompile, files) = do runPCF (bytecompileFiles files)
@@ -62,10 +89,83 @@ go (Run,files) = do runPCF (runFiles files)
 go (ClosureConversion, files) = do x <- runPCF (closureConvertFiles files)
                                    return  ()
 
-main :: IO ()
-main = execParser opts >>= go
-  where
-    opts = info (parseArgs <**> helper) ( fullDesc <> progDesc "Compilador de PCF" <> header "Compilador de PCF de la materia Compiladores 2020" )
+repl :: (MonadPCF m, MonadMask m) => [String] -> InputT m ()
+repl args = do
+        lift $ catchErrors $ compileFiles args
+        s <- lift $ get -- recupera el estado interno de la monada PCF (GlEnv) y lo levanta a InputT
+        when (inter s) $ liftIO $ putStrLn -- Si no se modificó la bandera interactiva con el compile intenta el modo interactivo
+          (  "Entorno interactivo para PCF0.\n"
+          ++ "Escriba :? para recibir ayuda.")
+        loop  
+  where loop = do
+           minput <- getInputLine prompt
+           case minput of
+               Nothing -> return ()
+               Just "" -> loop
+               Just x -> do
+                       c <- liftIO $ interpretCommand x
+                       b <- lift $ catchErrors $ handleCommand c
+                       maybe loop (flip when loop) b
+
+-- | Parser simple de comando interactivos
+interpretCommand :: String -> IO Command
+interpretCommand x
+  =  if isPrefixOf ":" x then
+       do  let  (cmd,t')  =  break isSpace x
+                t         =  dropWhile isSpace t'
+           --  find matching commands
+           let  matching  =  filter (\ (Cmd cs _ _ _) -> any (isPrefixOf cmd) cs) commands
+           case matching of
+             []  ->  do  putStrLn ("Comando desconocido `" ++ cmd ++ "'. Escriba :? para recibir ayuda.")
+                         return Noop
+             [Cmd _ _ f _]
+                 ->  do  return (f t)
+             _   ->  do  putStrLn ("Comando ambigüo, podría ser " ++
+                                   concat (intersperse ", " [ head cs | Cmd cs _ _ _ <- matching ]) ++ ".")
+                         return Noop
+     else
+       return (Compile (CompileInteractive x))
+
+commands :: [InteractiveCommand]
+commands
+  =  [ Cmd [":browse"]      ""        (const Browse) "Ver los nombres en scope",
+       Cmd [":load"]        "<file>"  (Compile . CompileFile)
+                                                     "Cargar un programa desde un archivo",
+       Cmd [":print"]       "<exp>"   Print          "Imprime un término y sus ASTs sin evaluarlo",
+       Cmd [":type"]        "<exp>"   Type           "Chequea el tipo de una expresión",
+       Cmd [":quit",":Q"]        ""        (const Quit)   "Salir del intérprete",
+       Cmd [":help",":?"]   ""        (const Help)   "Mostrar esta lista de comandos" ]
+
+helpTxt :: [InteractiveCommand] -> String
+helpTxt cs
+  =  "Lista de comandos:  Cualquier comando puede ser abreviado a :c donde\n" ++
+     "c es el primer caracter del nombre completo.\n\n" ++
+     "<expr>                  evaluar la expresión\n" ++
+     "let <var> = <expr>      definir una variable\n" ++
+     unlines (map (\ (Cmd c a _ d) ->
+                   let  ct = concat (intersperse ", " (map (++ if null a then "" else " " ++ a) c))
+                   in   ct ++ replicate ((24 - length ct) `max` 2) ' ' ++ d) cs)
+
+-- | Toma una lista de nombres de archivos, cambia a modo no interactivo,
+-- | guarda en el estado el último archivo cargado y los va compilando
+compileFiles ::  MonadPCF m => [String] -> m ()
+compileFiles []     = return ()
+compileFiles (x:xs) = do
+        modify (\s -> s { lfile = x, inter = False })
+        compileFile x
+        compileFiles xs
+
+-- | Toma un nombre de archivo, lo lee, 
+compileFile ::  MonadPCF m => String -> m ()
+compileFile f = do
+    printPCF ("Abriendo "++f++"...")
+    let filename = reverse(dropWhile isSpace (reverse f)) -- Trim
+    x <- liftIO $ catch (readFile filename) -- Lectura del archivo, (a IOString)
+               (\e -> do let err = show (e :: IOException) -- Cuerpo catch
+                         hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
+                         return "")
+    decls <- parseIO filename program x -- Ejecuta el parser de programa (declaraciones)
+    mapM_ handleDecl decls
 
 -- | Toma una lista de nombres de archivos, los va leyendo
 -- | e "imprime" el resultado de la conversion de clausuras y el hoisting
@@ -100,6 +200,74 @@ closureConvertFile f = do
                   printPCF $ show btc
                   return btc
                   return []
+
+-- | 'handleCommand' interpreta un comando y devuelve un booleano
+-- indicando si se debe salir del programa o no.
+handleCommand ::  MonadPCF m => Command  -> m Bool
+handleCommand cmd = do
+   s@GlEnv {..} <- get
+   case cmd of
+       Quit   ->  return False
+       Noop   ->  return True
+       Help   ->  printPCF (helpTxt commands) >> return True
+       Browse ->  do  printPCF (unlines [ name | name <- reverse (nub (map declName glb)) ])
+                      return True
+       Compile c ->
+                  do  case c of
+                          CompileInteractive e -> compilePhrase e
+                          CompileFile f        -> put (s {lfile=f}) >> compileFile f
+                      return True
+       Print e   -> printPhrase e >> return True
+       Type e    -> typeCheckPhrase e >> return True
+
+compilePhrase ::  MonadPCF m => String -> m ()
+compilePhrase x =
+  do
+    dot <- parseIO "<interactive>" declOrTm x
+    case dot of 
+      Left d  -> do 
+                    handleDecl d -- Todo arreglar para que haga el typecheck del STerm
+                    return ()
+      Right t -> do
+                    handleTerm t --Todo acomodar elab y elab'
+                    return ()
+
+handleTerm ::  MonadPCF m => STerm -> m ()
+handleTerm t = do
+          tt <- elab t
+          s <- get -- recupero el entorno
+          ty <- tc tt (tyEnv s)
+          closte <- evalCEK tt
+          te <- valToTerm closte 
+          printPCF (show te ++ " : " ++ ppTy ty)
+
+printPhrase   :: MonadPCF m => String -> m ()
+printPhrase x =
+  do
+    sterm <- parseIO "<interactive>" tm x
+    nterm <- desugar sterm
+    let ex = elab' nterm
+    t  <- case nterm of 
+           (V p f) -> maybe ex id <$> lookupDecl f
+           _       -> return ex  
+    printPCF "STerm:"
+    printPCF (show sterm)
+    printPCF "\nNTerm:"
+    printPCF (show nterm)
+    printPCF "\nTerm:"
+    printPCF (show t)
+
+typeCheckPhrase :: MonadPCF m => String -> m ()
+typeCheckPhrase x = do
+         t <- parseIO "<interactive>" tm x
+         printPCF "STerm:"
+         printPCF (show t)
+         tt <- elab t 
+         printPCF "Term:"
+         printPCF (show tt)
+         s <- get
+         ty <- tc tt (tyEnv s)
+         printPCF (ppTy ty)
 
 -- | Toma una lista de nombres de archivos, los va leyendo
 -- | y guardando los archivos con el bytecode correspondiente
@@ -155,11 +323,14 @@ runFile f = do
     runBC x
 
 -- | Toma un nombre de archivo, un parser y el contenido del archivo, ejecuta el parser y devuelve m a (a es [SDecl STerm]) o falla
-parseIO ::  MonadPCF m => String -> P [SDecl STerm] -> String -> m [SDecl STerm]
+--parseIO ::  MonadPCF m => String -> P [SDecl STerm] -> String -> m [SDecl STerm]
+parseIO ::  MonadPCF m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
                           Left e  -> throwError (ParseErr e)
                           Right r -> return r
 
+
+-- TODO: Antes era de la forma MonadPCF m => SDecl STerm -> m (), hacerlo compatible
 handleDecl ::  MonadPCF m => SDecl STerm -> m (Decl Term)
 handleDecl decl = do
                   nd <- desugarDec decl

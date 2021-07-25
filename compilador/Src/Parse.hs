@@ -239,7 +239,7 @@ program = many decl
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
 declOrTm :: P (Either (SDecl STerm) STerm)
-declOrTm =  try (Right <$> tm) <|> Left <$> decl
+declOrTm =  try (Right <$> tm) <|> (Left <$> decl)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
 -- p parser, x cadena a parsear, filename

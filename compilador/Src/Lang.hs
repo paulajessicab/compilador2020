@@ -26,7 +26,7 @@ type Name = String
 data Const = CNat !Int
   deriving Show
 
-data UnaryOp = Succ | Pred
+data UnaryOp = Succ | Pred | Print
   deriving Show
 
 data BinaryOp = Add | Sub
@@ -86,6 +86,7 @@ data Tm info var =
   | Let info Name (Tm info var) (Tm info var) -- implementacion let-binding interna
   | App info (Tm info var) (Tm info var)
   | BinaryOp info BinaryOp (Tm info var) (Tm info var)
+  | UnaryOp info UnaryOp (Tm info var) -- VER Esta para el print de llvm
   | Fix info Name Ty Name Ty (Tm info var)
   | IfZ info (Tm info var) (Tm info var) (Tm info var)
   deriving (Show, Functor)

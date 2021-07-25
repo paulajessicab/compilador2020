@@ -35,12 +35,24 @@ import Common ()
 import ClosureConversion
 import System.Console.Haskeline ( defaultSettings, getInputLine, runInputT, InputT )
 import CEK (evalCEK, valToTerm)
+import CIR (runCanon, CanonProg)
+import InstSel (codegen)
+import LLVM.AST (Module)
+import qualified Data.Text.Lazy as L
+import qualified Data.Text.IO as TIO
+import System.Process (system)
+
+import LLVM.Pretty (ppllvm)
+
+--debug = flip trace
 
 data Mode = Interactive
           | Typecheck
           | Bytecompile
           | Run
           | ClosureConversion
+          | GenerateLLVM
+          | RunLLVM
 
 data Command = Compile CompileForm
              | Print String
@@ -65,6 +77,8 @@ parseMode =
   <|> flag' Bytecompile (long "bytecompile" <> short 'c' <> help "Compilar a la BVM")
   <|> flag' Run (long "run" <> short 'r' <> help "Ejecutar bytecode en la BVM")
   <|> flag' ClosureConversion (long "cc" <> help "Imprimir resultado luego de cc y hoisting")
+  <|> flag' GenerateLLVM (long "llvm" <> help "Generar código LLVM")
+  <|> flag' RunLLVM (long "runllvm" <> help "Genera y ejecuta código LLVM")
   <|> flag Interactive Interactive ( long "interactive" <> short 'i'
                                                         <> help "Ejecutar en forma interactiva" )
 
@@ -88,6 +102,10 @@ go (Run,files) = do runPCF (runFiles files)
                     return ()
 go (ClosureConversion, files) = do x <- runPCF (closureConvertFiles files)
                                    return  ()
+go (GenerateLLVM, files) = do x <- runPCF (genLLVMfromFiles files)
+                              return  ()
+go (RunLLVM, files) = do x <- runPCF (runLLVMfromFiles files)
+                         return  ()
 
 repl :: (MonadPCF m, MonadMask m) => [String] -> InputT m ()
 repl args = do
@@ -131,7 +149,7 @@ commands
   =  [ Cmd [":browse"]      ""        (const Browse) "Ver los nombres en scope",
        Cmd [":load"]        "<file>"  (Compile . CompileFile)
                                                      "Cargar un programa desde un archivo",
-       Cmd [":print"]       "<exp>"   Print          "Imprime un término y sus ASTs sin evaluarlo",
+       Cmd [":print"]       "<exp>"   Main.Print          "Imprime un término y sus ASTs sin evaluarlo",
        Cmd [":type"]        "<exp>"   Type           "Chequea el tipo de una expresión",
        Cmd [":quit",":Q"]        ""        (const Quit)   "Salir del intérprete",
        Cmd [":help",":?"]   ""        (const Help)   "Mostrar esta lista de comandos" ]
@@ -168,12 +186,9 @@ compileFile f = do
     mapM_ handleDecl decls
 
 -- | Toma una lista de nombres de archivos, los va leyendo
--- | e "imprime" el resultado de la conversion de clausuras y el hoisting
+-- | e "imprime" el resultado de la conversion de clausuras y el hoisting 
 closureConvertFiles :: MonadPCF m =>  [String] -> m ()--[[IrDecl]]
-closureConvertFiles [] = return ()
-closureConvertFiles (x:xs) = do
-                            cc <- closureConvertFile x
-                            closureConvertFiles xs
+closureConvertFiles xs = mapM_ closureConvertFile xs
 
 -- | Toma un nombre de archivo, lo lee y retorna su conversion de clausuras
 closureConvertFile :: MonadPCF m => String -> m [IrDecl]
@@ -199,7 +214,27 @@ closureConvertFile f = do
                   printPCF "\nClosureConversion: \n"
                   printPCF $ show btc
                   return btc
-                  return []
+                  --return []
+
+-- |
+genLLVMfromFiles :: MonadPCF m => [String] -> m ()
+genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
+
+genLLVMfromFile :: MonadPCF m => String -> m Module
+genLLVMfromFile f = do 
+                      cc <- closureConvertFile f
+                      let llvm = codegen (runCanon cc)
+                      return llvm `debug` (L.unpack (ppllvm llvm))
+                      
+runLLVMfromFiles :: MonadPCF m => [String] -> m ()                      
+runLLVMfromFiles = mapM_ runLLVMfromFile
+
+runLLVMfromFile :: MonadPCF m => String -> m ()                      
+runLLVMfromFile filename = do llvm <- genLLVMfromFile filename
+                              let commandline = "clang -Wno-override-module output.ll runtime.c -lgc -o prog"
+                              liftIO $ TIO.writeFile "output.ll" (L.toStrict (ppllvm llvm)) 
+                              liftIO $ system commandline
+                              return ()
 
 -- | 'handleCommand' interpreta un comando y devuelve un booleano
 -- indicando si se debe salir del programa o no.
@@ -217,7 +252,7 @@ handleCommand cmd = do
                           CompileInteractive e -> compilePhrase e
                           CompileFile f        -> put (s {lfile=f}) >> compileFile f
                       return True
-       Print e   -> printPhrase e >> return True
+       Main.Print e   -> printPhrase e >> return True
        Type e    -> typeCheckPhrase e >> return True
 
 compilePhrase ::  MonadPCF m => String -> m ()

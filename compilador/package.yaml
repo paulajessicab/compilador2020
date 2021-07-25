@@ -32,9 +32,13 @@ dependencies:
 - binary
 - bytestring
 - haskeline
+- llvm-hs-pure
+- llvm-hs-pretty
+- process
+- containers
 
 library:
-  source-dirs: src
+  source-dirs: Src
 
 executables:
   compiladores-exe:

@@ -183,7 +183,7 @@ cgExpr (BinOp Lang.Sub v1 v2) = do
                                (LocalReference integer r'64) []]
   return (IntToPtr (LocalReference integer r'') ptr [])
 
-cgExpr (BinOp Lang.Prod v1 v2) = do
+{-cgExpr (BinOp Lang.Prod v1 v2) = do
   v1 <- cgV v1
   v2 <- cgV v2
   vf1 <- freshName
@@ -196,6 +196,7 @@ cgExpr (BinOp Lang.Prod v1 v2) = do
                (LocalReference integer vf2)
                []]
   return (IntToPtr (LocalReference integer r) ptr [])
+-}
 
 cgExpr (UnOp Lang.Succ v) = do
   cgExpr (BinOp Lang.Add v (C 1)) -- trucho
@@ -217,6 +218,7 @@ cgExpr (UnOp Lang.Print v) = do
                  []
                  []]
   return (IntToPtr (LocalReference integer r) ptr [])
+
 
 cgExpr (CIR.Phi brs) = do
   args <- mapM (\(loc, v) -> do op <- cgV v

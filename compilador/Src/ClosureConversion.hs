@@ -21,6 +21,7 @@ data IrDecl =
 data IrTm   = IrVar Name
             | IrCall IrTm [IrTm]
             | IrConst Const
+            | IrUnaryOp UnaryOp IrTm --VER lo agregue para el print
             | IrBinaryOp BinaryOp IrTm IrTm
             | IrLet Name IrTm IrTm
             | IrIfZ IrTm IrTm IrTm
@@ -43,6 +44,9 @@ closureConvert (BinaryOp p op t0 t1)   = do
                                             ct0 <- closureConvert t0
                                             ct1 <- closureConvert t1
                                             return $ IrBinaryOp op ct0 ct1
+closureConvert (UnaryOp p op t0)       = do 
+                                            ct0 <- closureConvert t0
+                                            return $ IrUnaryOp op ct0
 closureConvert (IfZ p t0 t1 t2)        = do 
                                             ct0 <- closureConvert t0
                                             ct1 <- closureConvert t1

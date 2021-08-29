@@ -70,7 +70,26 @@ data InteractiveCommand = Cmd [String] String (String -> Command) String
 prompt :: String
 prompt = "PCF> "
 
--- | Parser de banderas
+-----------------------
+-- Main
+-----------------------
+
+main :: IO ()
+main = execParser opts >>= go
+  where
+    opts = info (parseArgs <**> helper) ( fullDesc
+                                          <> progDesc "Compilador de PCF"
+                                          <> header "Compilador de PCF de la materia Compiladores 2020" )
+
+-----------------------
+-- Parsers para argumentos
+-----------------------
+
+-- | Parser de opciones general, consiste de un modo y una lista de archivos a procesar
+parseArgs :: Parser (Mode,[FilePath])
+parseArgs = (,) <$> parseMode <*> many (argument str (metavar "FILES..."))
+
+-- | Parser de banderas (modos)
 parseMode :: Parser Mode
 parseMode =
   flag' Typecheck ( long "typecheck" <> short 't' <> help "Solo chequear tipos")
@@ -82,15 +101,7 @@ parseMode =
   <|> flag Interactive Interactive ( long "interactive" <> short 'i'
                                                         <> help "Ejecutar en forma interactiva" )
 
--- | Parser de opciones general, consiste de un modo y una lista de archivos a procesar
-parseArgs :: Parser (Mode,[FilePath])
-parseArgs = (,) <$> parseMode <*> many (argument str (metavar "FILES..."))
-
-main :: IO ()
-main = execParser opts >>= go
-  where
-    opts = info (parseArgs <**> helper) ( fullDesc <> progDesc "Compilador de PCF" <> header "Compilador de PCF de la materia Compiladores 2020" )
-
+-- | Realiza las operaciones necesarias de acuerdo al modo elegido
 go :: (Mode,[FilePath]) -> IO ()
 go (Interactive,files) = do
                           runPCF (runInputT defaultSettings (repl files))
@@ -107,6 +118,11 @@ go (GenerateLLVM, files) = do x <- runPCF (genLLVMfromFiles files)
 go (RunLLVM, files) = do x <- runPCF (runLLVMfromFiles files)
                          return  ()
 
+-----------------------
+-- Modo interactivo
+-----------------------
+
+-- | Función que proporciona el modo interactivo (Read-Eval-Print-Loop)
 repl :: (MonadPCF m, MonadMask m) => [String] -> InputT m ()
 repl args = do
         lift $ catchErrors $ compileFiles args
@@ -154,15 +170,9 @@ commands
        Cmd [":quit",":Q"]        ""        (const Quit)   "Salir del intérprete",
        Cmd [":help",":?"]   ""        (const Help)   "Mostrar esta lista de comandos" ]
 
-helpTxt :: [InteractiveCommand] -> String
-helpTxt cs
-  =  "Lista de comandos:  Cualquier comando puede ser abreviado a :c donde\n" ++
-     "c es el primer caracter del nombre completo.\n\n" ++
-     "<expr>                  evaluar la expresión\n" ++
-     "let <var> = <expr>      definir una variable\n" ++
-     unlines (map (\ (Cmd c a _ d) ->
-                   let  ct = concat (intersperse ", " (map (++ if null a then "" else " " ++ a) c))
-                   in   ct ++ replicate ((24 - length ct) `max` 2) ' ' ++ d) cs)
+-----------------------
+-- Compilacion
+-----------------------
 
 -- | Toma una lista de nombres de archivos, cambia a modo no interactivo,
 -- | guarda en el estado el último archivo cargado y los va compilando
@@ -254,6 +264,18 @@ handleCommand cmd = do
                       return True
        Main.Print e   -> printPhrase e >> return True
        Type e    -> typeCheckPhrase e >> return True
+
+
+helpTxt :: [InteractiveCommand] -> String
+helpTxt cs
+  =  "Lista de comandos:  Cualquier comando puede ser abreviado a :c donde\n" ++
+     "c es el primer caracter del nombre completo.\n\n" ++
+     "<expr>                  evaluar la expresión\n" ++
+     "let <var> = <expr>      definir una variable\n" ++
+     unlines (map (\ (Cmd c a _ d) ->
+                   let  ct = concat (intersperse ", " (map (++ if null a then "" else " " ++ a) c))
+                   in   ct ++ replicate ((24 - length ct) `max` 2) ' ' ++ d) cs)
+
 
 compilePhrase ::  MonadPCF m => String -> m ()
 compilePhrase x =
@@ -385,10 +407,3 @@ sModuleToModule [x] = do dx <- handleDecl x
 sModuleToModule (x:xs) = do dx <- handleDecl x
                             dxs <- sModuleToModule xs
                             return $ dx : dxs
-
-{-
-test :: MonadPCF m => String -> m ()
-test xs = do decls <- parseIO "" program xs
-             im <- sModuleToModule decls
-             btc <- bytecompileModule im
-             runBC btc-}

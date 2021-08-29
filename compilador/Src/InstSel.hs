@@ -227,7 +227,11 @@ cgExpr (CIR.Phi brs) = do
 
 -- truchísimo
 cgExpr (V v) = do
-  cgExpr (BinOp Lang.Add v (C 0))
+  v' <- cgV v
+  vf <- freshName
+  tell [vf := PtrToInt v' integer []]
+  return (IntToPtr (LocalReference integer vf) ptr [])
+  --cgExpr (BinOp Lang.Add v (C 0))
 
 cgExpr (CIR.Call v args) = do
  v <- cgV v

@@ -32,13 +32,12 @@ data IrTm   = IrVar Name
 -- | Realiza la conversion de clausuras y el hoisting de las funciones
 closureConvert :: Term -> StateT Int (Writer [IrDecl]) IrTm
 closureConvert (V p (Free n))          = return $ IrVar n
-closureConvert (V p (Bound i))       = undefined  `debug` ("Ups, entre en bound")
+closureConvert (V p (Bound i))       = error "Ups, entre en bound"
 -- Caso Bound: Todas las funciones deben terminar siendo top level, es decir, que no van a tener variables bindeadas
--- TODO: tirar error si entro en este caso
 closureConvert (Const p c)             = return $ IrConst c
 closureConvert (Let p n t0 t1)         = do
                                             ct0 <- closureConvert t0
-                                            ct1 <- closureConvert t1
+                                            ct1 <- closureConvert (open n t1)
                                             return $ IrLet n ct0 ct1
 closureConvert (BinaryOp p op t0 t1)   = do 
                                             ct0 <- closureConvert t0

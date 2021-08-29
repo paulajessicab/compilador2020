@@ -78,16 +78,18 @@ instance Show CanonProg where
 runCanon :: [IrDecl] -> CanonProg
 runCanon xs = CanonProg ([Left ("pcfmain", [], mainblocks)] ++ a)
               where (a, w) = runWriter $ runCanon' xs             
-                    mainblocks = createBlocks $ execCodegen $ do
+                    mainblocks = createBlocks $ execCanonMonad $ do
                                                               entry <- addBlock entryBlockName
                                                               setBlock entry
                                                               mapM_ storeGlobal w
                                                               addTerminator $ Return $ C 0
 
-storeGlobal :: (Name, IrTm) -> Codegen ()
+storeGlobal :: (Name, IrTm) -> CanonMonad ()
 storeGlobal (name, t) = do
                           ct <- canon t
                           addInstruction $ Store name ct
+                          n <- freshRegName  --DEBUG 
+                          addInstruction $ Assign (Temp n) (UnOp Print (G name)) --DEBUG
 
 -- Toma la lista de globales, las declaraciones y genera canon
 runCanon' :: [IrDecl] -> Writer [(Name, IrTm)] [Either CanonFun CanonVal]
@@ -97,53 +99,54 @@ runCanon' (x:xs) = do
                     cs <- runCanon' xs
                     return $ c : cs 
 
-{-
-Tal vez tenga que hacer algo como 
-
-let comp = do mapM_ cgInst insts
-                cgTerm term
-  (t, is) <- runWriterT comp
--}
-
 runCanonValOrFun :: IrDecl -> Writer [(Name, IrTm)] (Either CanonFun CanonVal)
 runCanonValOrFun (IrVal name def) = do 
                                  tell [(name, def)]
                                  return (Right name)
 runCanonValOrFun (IrFun name ar args body) = return (Left (name, args, blocks))
-                                          where blocks = createBlocks $ execCodegen $ do
+                                          where blocks = createBlocks $ execCanonMonad $ do
                                                                                   entry <- addBlock entryBlockName
                                                                                   setBlock entry
+                                                                                  -- Manejo los parámetros por registros
+                                                                                  -- Para poder recuperarlos después, guardo en los locales el registro VER
+                                                                                  forM_ args (\a -> do saveLocal a (V (R (Temp a)))) 
                                                                                   retReg <- freshRegName
                                                                                   bc <- canon body
                                                                                   addInstruction $ Assign (Temp retReg) bc
                                                                                   addTerminator $ Return $ R $ Temp retReg
 
 
-
-
--- | Monada que guarda el estado de la generacion de codigo
+-- | Monada que guarda el estado de la canonicalización
 -- | En blocks se guarda un diccionario que mapea los nombres de los bloques con su estado
-data CodeGenState = CodeGenState { currentBlock :: Name, blocks :: Map.Map Name BlockState, nameGen :: Int}
+data CanonState = CanonState { currentBlock :: Name, blocks :: Map.Map Name BlockState, nameGen :: Int, locals :: Map.Map Name Expr}
 
 data BlockState = BlockState { index :: Int, instructions :: [Inst], terminator :: Maybe Terminator}
 
-newtype Codegen a = Codegen { runCodegen :: State CodeGenState a }
-    deriving (Functor, Applicative, Monad, MonadState CodeGenState )
+newtype CanonMonad a = CanonMonad { runCanonMonad :: State CanonState a }
+    deriving (Functor, Applicative, Monad, MonadState CanonState )
 
--- Necesito un symbol table?
+-- Necesito un symbol table? Creo que si para locales
+saveLocal :: Name -> Expr -> CanonMonad ()
+saveLocal n e = do 
+                  l <- gets locals
+                  modify $ \s -> s { locals = Map.insert n e l }
 
+getLocal :: Name -> CanonMonad (Maybe Expr)
+getLocal n = do
+              l <- gets locals
+              return $ Map.lookup n l
 
 -- | Operadores de la monada de estado
-execCodegen :: Codegen a -> CodeGenState
-execCodegen m = execState (runCodegen m) emptyState
+execCanonMonad :: CanonMonad a -> CanonState
+execCanonMonad m = execState (runCanonMonad m) emptyState
 
-emptyState :: CodeGenState
-emptyState = CodeGenState entryBlockName Map.empty 0
+emptyState :: CanonState
+emptyState = CanonState entryBlockName Map.empty 0 Map.empty
 
 entryBlockName :: Name
 entryBlockName = "entry"
 
-createBlocks :: CodeGenState -> [BasicBlock]
+createBlocks :: CanonState -> [BasicBlock]
 createBlocks m = map makeBlock $ (sortBy (compare `on` (index . snd))) $ Map.toList (blocks m)
 
 makeBlock :: (Name, BlockState) -> BasicBlock
@@ -155,7 +158,7 @@ makeBlock (name, (BlockState _ i t)) = (name, (reverse i), (makeTerm t))
 emptyBlock :: Int -> BlockState
 emptyBlock i = BlockState i [] Nothing
 
-addBlock :: Name -> Codegen Name
+addBlock :: Name -> CanonMonad Name
 addBlock name = do 
                   bs <- gets blocks
                   nix <- gets nameGen
@@ -165,40 +168,41 @@ addBlock name = do
                   modify $ \s -> s { blocks = Map.insert newName newBlock bs }
                   return newName
 
-setBlock :: Name -> Codegen Name
+setBlock :: Name -> CanonMonad Name
 setBlock name = do
   modify $ \s -> s { currentBlock = name }
   return name
 
-modifyBlock :: BlockState -> Codegen ()
+modifyBlock :: BlockState -> CanonMonad ()
 modifyBlock new = do
   active <- gets currentBlock
   modify $ \s -> s { blocks = Map.insert active new (blocks s) }
 
-getBlock :: Codegen Name
+getBlock :: CanonMonad Name
 getBlock = gets currentBlock
 
-current :: Codegen BlockState
+current :: CanonMonad BlockState
 current = do
   c <- gets currentBlock
   blks <- gets blocks
   case Map.lookup c blks of
     Just x -> return x
-    Nothing -> error $ "No such block: " ++ show c
+    Nothing -> error $ "No existe el bloque: " ++ show c
 
-freshRegName :: Codegen Name
+freshRegName :: CanonMonad Name
 freshRegName = do 
                   idx <- gets nameGen
                   modify $ \s -> s { nameGen = idx + 1 }
                   return $ "_r" ++ (show idx)
 
-addInstruction :: Inst -> Codegen ()
+-- Reemplaza las instrucciones del bloque actual con las mismas instrucciones pero le agrega la nueva al principio
+addInstruction :: Inst -> CanonMonad ()
 addInstruction inst = do 
                         bloqueActual <- current
                         let insts = instructions bloqueActual
-                        modifyBlock (bloqueActual {instructions = (inst : insts) }) --reemplaza las instrucciones del bloque actual con las mismas instrucciones pero le agrega la nueva al principio
+                        modifyBlock (bloqueActual {instructions = (inst : insts) })
 
-addTerminator :: Terminator -> Codegen Terminator
+addTerminator :: Terminator -> CanonMonad Terminator
 addTerminator trm = do
   blk <- current
   modifyBlock (blk { terminator = Just trm })
@@ -206,8 +210,12 @@ addTerminator trm = do
 
 -- | Translations
 
-canon :: IrTm -> Codegen Expr
-canon (IrVar n)           = return $ V $ G $ n --ver
+canon :: IrTm -> CanonMonad Expr
+canon (IrVar n)           = do
+                              val <- getLocal n
+                              case val of
+                                 Just v -> return v
+                                 Nothing -> return $ V $ G $ n
 canon (IrCall t xs)       = do
                               rt <- freshRegName
                               ct <- canon t
@@ -232,7 +240,7 @@ canon (IrBinaryOp op a b) = do
                               return $ BinOp op (R va) (R vb)
 canon (IrLet name v t)    = do
                               cv <- canon v
-                              addInstruction $ Store name cv --store + assign
+                              saveLocal name cv
                               canon t 
 canon (IrIfZ cond t e)    = do
                               rc <- freshRegName

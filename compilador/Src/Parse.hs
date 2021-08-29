@@ -167,7 +167,7 @@ termLet = do
      ty <- typeP
      reservedOp "="
      t <- tm
-     reservedOp "in"
+     reserved "in"
      SLet i v bs ty t <$> tm
 
 -- | Parser de términos let recursivos

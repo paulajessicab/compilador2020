@@ -109,6 +109,7 @@ getInfo (App i _ _ ) = i
 getInfo (BinaryOp i _ _ _) = i
 getInfo (Fix i _ _ _ _ _) = i
 getInfo (IfZ i _ _ _) = i
+getInfo (Let i _ _ _) = i
 
 -- | Obtiene las variables libres de un término.
 freeVars :: Tm info Var -> [Name]
@@ -120,3 +121,4 @@ freeVars (BinaryOp _ _ l r) = freeVars l ++ freeVars r
 freeVars (Fix _ _ _ _ _ t) = freeVars t
 freeVars (IfZ _ c t e)     = freeVars c ++ freeVars t ++ freeVars e
 freeVars (Const _ _)       = []
+freeVars (Let _ _ v t)       = freeVars v ++ freeVars t --menos x?

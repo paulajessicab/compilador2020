@@ -39,10 +39,13 @@ desugar (SApp p (SUnaryOp _ op) a) = do
                                       case op of
                                         Succ -> return $ BinaryOp p Add t (Const p (CNat 1))
                                         _    -> return $ BinaryOp p Sub t (Const p (CNat 1))
-desugar (SApp p (SApp _ (SBinaryOp _ op) a) b) = do
+desugar (SApp p (SApp _ a (SBinaryOp _ op)) b) = do
                                                   da <- desugar a
                                                   db <- desugar b
                                                   return $ BinaryOp p op da db
+desugar (SApp p a (SBinaryOp _ op)) = do
+                                        da <- desugar a
+                                        return $ Lam p "y" NatTy (BinaryOp p op da (V p "y"))
 desugar (SApp p h a)               = do
                                       dh <- desugar h
                                       da <- desugar a

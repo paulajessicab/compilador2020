@@ -16,6 +16,7 @@ import Common
 import Text.Parsec hiding (runP)
 import Data.Char ( isNumber, ord )
 import qualified Text.Parsec.Token as Tok
+import Text.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language ( GenLanguageDef(..), emptyDef )
 type P = Parsec String ()
 
@@ -28,8 +29,8 @@ lexer = Tok.makeTokenParser $
         emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "fun", "fix", "then", "else",
-                          "succ", "pred", "add", "sub", "ifz", "Nat", "in", "let rec", "type"],
-         reservedOpNames = ["->",":","="] ---"+","-"
+                          "succ", "pred", "ifz", "Nat", "in", "let rec", "type"],
+         reservedOpNames = ["->",":","=","+","-"]
         }
 
 whiteSpace :: P ()
@@ -68,6 +69,7 @@ tyvarP :: P STy
 tyvarP = do
           SAliasTy <$> tyvar
 
+-- Ver si la suma es un atom tmb
 tyatom :: P STy
 tyatom = (reserved "Nat" >> return SNatTy)
          <|> tyvarP
@@ -107,18 +109,18 @@ unaryOp:: P STerm
 unaryOp = do i <- getPos
              SUnaryOp i <$> unaryOpName
 
--- No necesito una regla para el UnaryOp aplicado
--- porque es redundante con la de aplicación (el no aplicado es un atom)
-
 binOpName :: P BinaryOp
 binOpName =
-          (reserved "add" >> return Add)
-     <|>  (reserved "sub" >> return Sub)
+          (reservedOp "+" >> return Add)
+     <|>  (reservedOp "-" >> return Sub)     
 
-binOp:: P STerm
-binOp = do i <- getPos
-           SBinaryOp i <$> binOpName
+binOp :: P STerm
+binOp = do
+          i <- getPos
+          SBinaryOp i <$> binOpName
 
+-- No necesito una regla para el UnaryOp aplicado
+-- porque es redundante con la de aplicación (el no aplicado es un atom)
 atom :: P STerm
 atom =     flip SConst <$> const <*> getPos
        <|> flip SV <$> var <*> getPos
@@ -186,7 +188,7 @@ termLetRec = do
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> unaryOp <|> fix <|> termLetRec <|> termLet 
+tm =  app <|> binOp <|> lam <|> ifz <|> unaryOp <|> fix <|> termLetRec <|> termLet
 
 -- | Parser de nombres de variables de tipos
 tyvar :: P Name

@@ -31,15 +31,21 @@ tc (V p (Free n)) bs = case lookup n bs of
                            Nothing -> failPosPCF p $ "Variable no declarada "++ppName n
                            Just ty -> return ty 
 tc (Const _ (CNat n)) _ = return NatTy
-{-tc (UnaryOp p u t) bs = do 
+tc (UnaryOp p u t) bs = do --- revisar
       ty <- tc t bs
-      expect NatTy ty t-}
+      expect NatTy ty t
+      return NatTy
 tc (IfZ p c t t') bs = do
        tyc  <- tc c bs
        expect NatTy tyc c
        tyt  <- tc t bs
        tyt' <- tc t' bs
        expect tyt tyt' t'
+tc (Let p x ty v t) bs = do
+    tyv <- tc v bs
+    expect ty tyv v
+    tyt <- tc (open x t) ((x,ty):bs)
+    return tyt 
 tc (Lam p v ty t) bs = do
          ty' <- tc (open v t) ((v,ty):bs)
          return (FunTy ty ty')
@@ -64,7 +70,7 @@ tc (BinaryOp p u t t') bs = do
                         ty' <- tc t' bs
                         expect NatTy ty' t'
                         return NatTy
-tc _ _ = return NatTy  --- TODO!! Esto està mal, falta el let
+--tc _ _ = return NatTy --Tirar not implemented exc
 
 
 -- | @'typeError' t s@ lanza un error de tipo para el término @t@ 

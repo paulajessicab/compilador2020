@@ -31,7 +31,7 @@ varChanger local bound t = go 0 t where
   go n (IfZ p c t e) = IfZ p (go n c) (go n t) (go n e)
   go n t@(Const _ _) = t
   --go n (UnaryOp p op t) = UnaryOp p op (go n t)
-  go n (Let p v e1 e2) = Let p v (go n e1) (go (n+1) e2)
+  go n (Let p v tv e1 e2) = Let p v tv (go n e1) (go (n+1) e2)
 
 -- `openN [nn,..,n0] t` reemplaza las primeras (n+1) variables ligadas
 -- en `t` (que debe ser localmente cerrado) por los nombres libres en la

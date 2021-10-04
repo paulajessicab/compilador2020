@@ -37,6 +37,7 @@ data Frame  = KArg Env Term
             | KIfZ Env Term Term
             | KSucc 
             | KPred
+            | KLet Env Term
 
 type Kont = [Frame]
 
@@ -48,6 +49,7 @@ type Kont = [Frame]
 search :: MonadPCF m => Term -> Env -> Kont -> m Val
 --search (UnaryOp _ Pred t) env k = search t env (KPred : k) 
 --search (UnaryOp _ Succ t) env k = search t env (KSucc : k)
+search (Let _ x ty v t) env k = search v env ((KLet env t) : k) -- ver
 search (IfZ _ c t e) env k = search c env ((KIfZ env t e) : k)
 search (App _ t u) env k = search t env ((KArg env u) : k)
 search (V _ (Bound i)) env k = destroy (env!!i) k
@@ -72,6 +74,7 @@ destroy (Cons _) ((KIfZ env _ e):k) = search e env k
 destroy (VClos c) ((KArg env t):k) = search t env ((KClos c):k)
 destroy v (KClos (ClosFun env _ t):k) = search t (v:env) k
 destroy v (KClos(ClosFix env f fty x xty t):k) = search t (VClos (ClosFix env f fty x xty t):v:env) k
+destroy v ((KLet env t) : k) =  search t (v:env) k --Ver
 
 -- | Evaluación de un término usando la máquina CEK
 evalCEK :: MonadPCF m => Term -> m Val

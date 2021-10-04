@@ -19,6 +19,7 @@ Definiciones de distintos tipos de datos:
 module Lang where
 
 import Common ( Pos )
+import Data.List (delete)
 
 -- Constructores Básicos
 type Name = String
@@ -81,7 +82,7 @@ data Tm info var =
     V info var
   | Const info Const
   | Lam info Name Ty (Tm info var)
-  | Let info Name (Tm info var) (Tm info var) -- implementacion let-binding interna
+  | Let info Name Ty (Tm info var) (Tm info var) -- implementacion let-binding interna
   | App info (Tm info var) (Tm info var)
   | BinaryOp info BinaryOp (Tm info var) (Tm info var)
   | UnaryOp info UnaryOp (Tm info var) -- VER Esta para el print de llvm
@@ -107,7 +108,7 @@ getInfo (App i _ _ ) = i
 getInfo (BinaryOp i _ _ _) = i
 getInfo (Fix i _ _ _ _ _) = i
 getInfo (IfZ i _ _ _) = i
-getInfo (Let i _ _ _) = i
+getInfo (Let i _ _ _ _) = i
 
 -- | Obtiene las variables libres de un término.
 freeVars :: Tm info Var -> [Name]
@@ -119,4 +120,4 @@ freeVars (BinaryOp _ _ l r) = freeVars l ++ freeVars r
 freeVars (Fix _ _ _ _ _ t) = freeVars t
 freeVars (IfZ _ c t e)     = freeVars c ++ freeVars t ++ freeVars e
 freeVars (Const _ _)       = []
-freeVars (Let _ _ v t)       = freeVars v ++ freeVars t --menos x?
+freeVars (Let _ x _ v t)       = freeVars v ++ (delete x (freeVars t))

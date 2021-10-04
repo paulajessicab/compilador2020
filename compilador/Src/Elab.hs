@@ -65,12 +65,12 @@ desugar (SIfZ p c t e)             =  do
                                       dt <- desugar t
                                       de <- desugar e
                                       return $ IfZ p dc dt de
-desugar (SLet p v [] _ t t')      = do
-                                     -- dty <- desugarTy ty
+desugar (SLet p v [] ty t t')      = do
+                                      dty <- desugarTy ty
                                       dt' <- desugar t'
                                       dt <- desugar t
-                                      return $ Let p v dt dt' -- implementacion let-binding interno 
-desugar (SLet p f xs ty t t')      = desugar $ SLet p f [] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'-- Esto creo que queda igual
+                                      return $ Let p v dty dt dt' -- implementacion let-binding interno 
+desugar (SLet p f xs ty t t')      = desugar $ SLet p f [] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
 desugar (SLetRec p _ [] _ _ _ ) = failPosPCF p "Error: LetRec debe tener al menos 1 argumento"
 desugar (SLetRec p f [(x, xty)] ty t t') = desugar $ SLet p f [] (SFunTy xty ty) (SFix p [(f, SFunTy xty ty), (x, xty)] t) t'
 desugar (SLetRec p f (x:xs) ty t t') = desugar $ SLetRec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
@@ -118,7 +118,7 @@ elab' (App p h a)           = App p (elab' h) (elab' a)
 elab' (Fix p f fty x xty t) = Fix p f fty x xty (closeN [f, x] (elab' t))
 elab' (IfZ p c t e)         = IfZ p (elab' c) (elab' t) (elab' e)
 --elab' (UnaryOp i o t)       = UnaryOp i o (elab' t)
-elab' (Let p v e1 e2)       = Let p v (elab' e1) (close v (elab' e2)) 
+elab' (Let p v ty e1 e2)    = Let p v ty (elab' e1) (close v (elab' e2)) 
 
 {-
 El original era equivalente a

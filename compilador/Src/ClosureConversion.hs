@@ -35,7 +35,7 @@ closureConvert (V p (Free n))          = return $ IrVar n
 closureConvert (V p (Bound i))       = error "Ups, entre en bound"
 -- Caso Bound: Todas las funciones deben terminar siendo top level, es decir, que no van a tener variables bindeadas
 closureConvert (Const p c)             = return $ IrConst c
-closureConvert (Let p n t0 t1)         = do
+closureConvert (Let p n ty t0 t1)         = do
                                             ct0 <- closureConvert t0
                                             ct1 <- closureConvert (open n t1)
                                             return $ IrLet n ct0 ct1

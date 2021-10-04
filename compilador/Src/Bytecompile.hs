@@ -120,7 +120,7 @@ bc (BinaryOp _ op a b) = do
                               _   -> return $ bca ++ bcb ++ [SUB]
 bc (V _ (Bound i))    = return [ACCESS, i]
 bc (V l (Free n))     = failPCF "No estamos trabajando con variables globales"
-bc (Let _ _ e1 e2) = do  
+bc (Let _ _ _ e1 e2) = do  
                           bce2 <- bc e2
                           bce1 <- bc e1
                           return $ bce1 ++ [SHIFT] ++ bce2 ++ [DROP]
@@ -159,7 +159,7 @@ tailbc (IfZ _ c t0 t1)  = do
                           tbct0 <- tailbc t0
                           tbct1 <- tailbc t1
                           return $ bcc ++ [IFZ, (length tbct0) + 2] ++ tbct0 ++ [JUMP, (length tbct1)] ++ tbct1
-tailbc (Let _ _ e1 e2)  = do  
+tailbc (Let _ _ _ e1 e2)  = do  
                           bce1 <- bc e1
                           tbce2 <- tailbc e2
                           return $ bce1 ++ [SHIFT] ++ tbce2
@@ -176,9 +176,11 @@ bytecompileModule m = do minn <- bcModuleInner m
 
 bcModuleInner :: MonadPCF m => Module -> m Term
 bcModuleInner [] = failPCF "No code to load"
-bcModuleInner [Decl p v e] = return $ Let p v e (close v e)
+bcModuleInner [Decl p v e] = do tce <- tc e []
+                                return $ Let p v tce e (close v e)
 bcModuleInner ((Decl p v e):xs) = do mxs <- bcModuleInner xs
-                                     return $ Let p v e (close v mxs)
+                                     tce <- tc e [] --Ver si el entorno de evaluación es el correcto 
+                                     return $ Let p v tce e (close v mxs)
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo 
 bcWrite :: Bytecode -> FilePath -> IO ()

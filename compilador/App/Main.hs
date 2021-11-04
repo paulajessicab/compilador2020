@@ -41,6 +41,7 @@ import LLVM.AST (Module)
 import qualified Data.Text.Lazy as L
 import qualified Data.Text.IO as TIO
 import System.Process (system)
+import Data.Maybe(maybeToList)
 
 import LLVM.Pretty (ppllvm)
 
@@ -160,6 +161,7 @@ interpretCommand x
      else
        return (Compile (CompileInteractive x))
 
+-- | Interpreta cada comando disponible
 commands :: [InteractiveCommand]
 commands
   =  [ Cmd [":browse"]      ""        (const Browse) "Ver los nombres en scope",
@@ -170,84 +172,7 @@ commands
        Cmd [":quit",":Q"]        ""        (const Quit)   "Salir del intérprete",
        Cmd [":help",":?"]   ""        (const Help)   "Mostrar esta lista de comandos" ]
 
------------------------
--- Compilacion
------------------------
-
--- | Toma una lista de nombres de archivos, cambia a modo no interactivo,
--- | guarda en el estado el último archivo cargado y los va compilando
-compileFiles ::  MonadPCF m => [String] -> m ()
-compileFiles []     = return ()
-compileFiles (x:xs) = do
-        modify (\s -> s { lfile = x, inter = False })
-        compileFile x
-        compileFiles xs
-
--- | Toma un nombre de archivo, lo lee, 
-compileFile ::  MonadPCF m => String -> m ()
-compileFile f = do
-    printPCF ("Abriendo "++f++"...")
-    let filename = reverse(dropWhile isSpace (reverse f)) -- Trim
-    x <- liftIO $ catch (readFile filename) -- Lectura del archivo, (a IOString)
-               (\e -> do let err = show (e :: IOException) -- Cuerpo catch
-                         hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
-                         return "")
-    decls <- parseIO filename program x -- Ejecuta el parser de programa (declaraciones)
-    mapM_ handleDecl decls
-
--- | Toma una lista de nombres de archivos, los va leyendo
--- | e "imprime" el resultado de la conversion de clausuras y el hoisting 
-closureConvertFiles :: MonadPCF m =>  [String] -> m ()--[[IrDecl]]
-closureConvertFiles xs = mapM_ closureConvertFile xs
-
--- | Toma un nombre de archivo, lo lee y retorna su conversion de clausuras
-closureConvertFile :: MonadPCF m => String -> m [IrDecl]
-closureConvertFile f = do
-    printPCF ("Abriendo "++f++"...")
-    let filename = reverse(dropWhile isSpace (reverse f))
-    x <- liftIO $ catch (readFile filename) 
-               (\e -> do let err = show (e :: IOException) 
-                         hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
-                         return "")
-    decls <- catchErrors (parseIO filename program x)
-    case decls of
-      Nothing -> do 
-                    printPCF "error"
-                    return []
-      Just d -> do
-                  printPCF "SDecls: \n"
-                  printPCF $ show d
-                  ptm <- sModuleToModule d
-                  printPCF "\nDecls: \n"
-                  printPCF $ show ptm
-                  btc <- runCC ptm
-                  printPCF "\nClosureConversion: \n"
-                  printPCF $ show btc
-                  return btc
-                  --return []
-
--- |
-genLLVMfromFiles :: MonadPCF m => [String] -> m ()
-genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
-
-genLLVMfromFile :: MonadPCF m => String -> m Module
-genLLVMfromFile f = do 
-                      cc <- closureConvertFile f
-                      let llvm = codegen (runCanon cc)
-                      return llvm `debug` (L.unpack (ppllvm llvm))
-                      
-runLLVMfromFiles :: MonadPCF m => [String] -> m ()                      
-runLLVMfromFiles = mapM_ runLLVMfromFile
-
-runLLVMfromFile :: MonadPCF m => String -> m ()                      
-runLLVMfromFile filename = do llvm <- genLLVMfromFile filename
-                              let commandline = "clang -Wno-override-module output.ll runtime.c -lgc -o prog"
-                              liftIO $ TIO.writeFile "output.ll" (L.toStrict (ppllvm llvm)) 
-                              liftIO $ system commandline
-                              return ()
-
--- | 'handleCommand' interpreta un comando y devuelve un booleano
--- indicando si se debe salir del programa o no.
+-- | Implementa cada comando. Devuelve un booleano indicando si se debe salir del programa o no.
 handleCommand ::  MonadPCF m => Command  -> m Bool
 handleCommand cmd = do
    s@GlEnv {..} <- get
@@ -265,7 +190,7 @@ handleCommand cmd = do
        Main.Print e   -> printPhrase e >> return True
        Type e    -> typeCheckPhrase e >> return True
 
-
+-- | Mensaje de ayuda del modo interactivo
 helpTxt :: [InteractiveCommand] -> String
 helpTxt cs
   =  "Lista de comandos:  Cualquier comando puede ser abreviado a :c donde\n" ++
@@ -276,19 +201,41 @@ helpTxt cs
                    let  ct = concat (intersperse ", " (map (++ if null a then "" else " " ++ a) c))
                    in   ct ++ replicate ((24 - length ct) `max` 2) ' ' ++ d) cs)
 
+-----------------------
+-- Compilacion Eval
+-----------------------
 
+-- | Compilacion Eval por linea
 compilePhrase ::  MonadPCF m => String -> m ()
 compilePhrase x =
   do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of 
       Left d  -> do 
-                    handleDecl d -- Todo arreglar para que haga el typecheck del STerm
+                    evalDecl d
                     return ()
       Right t -> do
                     handleTerm t --Todo acomodar elab y elab'
                     return ()
 
+-- | Compilacion Eval para una lista de archivos
+-- Toma una lista de nombres de archivos, cambia a modo no interactivo,
+-- guarda en el estado el último archivo cargado y los va compilando
+compileFiles ::  MonadPCF m => [String] -> m ()
+compileFiles []     = return ()
+compileFiles (x:xs) = do
+        modify (\s -> s { lfile = x, inter = False })
+        compileFile x
+        compileFiles xs
+
+compileFile ::  MonadPCF m => String -> m ()
+compileFile f = do 
+    decls <- fileToDecls f
+    case decls of
+      Nothing -> printPCF "error"
+      Just d  -> mapM_ evalDecl d
+
+-- | Manejo de los terminos (solo para modo interactivo)
 handleTerm ::  MonadPCF m => STerm -> m ()
 handleTerm t = do
           tt <- elab t
@@ -298,33 +245,19 @@ handleTerm t = do
           te <- valToTerm closte 
           printPCF (show te ++ " : " ++ ppTy ty)
 
-printPhrase   :: MonadPCF m => String -> m ()
-printPhrase x =
-  do
-    sterm <- parseIO "<interactive>" tm x
-    nterm <- desugar sterm
-    let ex = elab' nterm
-    t  <- case nterm of 
-           (V p f) -> maybe ex id <$> lookupDecl f
-           _       -> return ex  
-    printPCF "STerm:"
-    printPCF (show sterm)
-    printPCF "\nNTerm:"
-    printPCF (show nterm)
-    printPCF "\nTerm:"
-    printPCF (show t)
+-- | Evaluacion de declaraciones
+evalDecl ::  MonadPCF m => SDecl STerm -> m ()
+evalDecl decl = do
+                  nd <- handleDecl decl
+                  case nd of
+                    Just (Decl p x t) -> do
+                      te <- eval t  -- Ver si hay que poner evalCek
+                      addDecl (Decl p x te)
+                    _ -> return ()
 
-typeCheckPhrase :: MonadPCF m => String -> m ()
-typeCheckPhrase x = do
-         t <- parseIO "<interactive>" tm x
-         printPCF "STerm:"
-         printPCF (show t)
-         tt <- elab t 
-         printPCF "Term:"
-         printPCF (show tt)
-         s <- get
-         ty <- tc tt (tyEnv s)
-         printPCF (ppTy ty)
+-----------------------
+-- Traduccion a Bytecode
+-----------------------
 
 -- | Toma una lista de nombres de archivos, los va leyendo
 -- | y guardando los archivos con el bytecode correspondiente
@@ -342,13 +275,7 @@ bytecompileFiles (x:xs) = do
 -- | Toma un nombre de archivo, lo lee y retorna su bytecode
 bytecompileFile ::  MonadPCF m => String -> m Bytecode
 bytecompileFile f = do
-    printPCF ("Abriendo "++f++"...")
-    let filename = reverse(dropWhile isSpace (reverse f))
-    x <- liftIO $ catch (readFile filename) 
-               (\e -> do let err = show (e :: IOException) 
-                         hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
-                         return "")
-    decls <- catchErrors (parseIO filename program x)
+    decls <- fileToDecls f
     case decls of
       Nothing -> do 
                     printPCF "error"
@@ -364,8 +291,10 @@ bytecompileFile f = do
                   --printPCF $ show btc
                   return btc
 
+-----------------------
+-- Run Bytecode
+-----------------------
 
--- | 
 runFiles :: MonadPCF m => [String] -> m ()
 runFiles = mapM_ runFile
 
@@ -379,31 +308,138 @@ runFile f = do
                          return [])
     runBC x
 
--- | Toma un nombre de archivo, un parser y el contenido del archivo, ejecuta el parser y devuelve m a (a es [SDecl STerm]) o falla
---parseIO ::  MonadPCF m => String -> P [SDecl STerm] -> String -> m [SDecl STerm]
+-----------------------
+-- Closure Convert
+-----------------------
+
+-- | Toma una lista de nombres de archivos, los va leyendo
+-- | e "imprime" el resultado de la conversion de clausuras y el hoisting 
+closureConvertFiles :: MonadPCF m =>  [String] -> m ()--[[IrDecl]]
+closureConvertFiles xs = mapM_ closureConvertFile xs
+
+-- | Toma un nombre de archivo, lo lee y retorna su conversion de clausuras
+closureConvertFile :: MonadPCF m => String -> m [IrDecl]
+closureConvertFile f = do
+    decls <- fileToDecls f
+    case decls of
+      Nothing -> do 
+                    printPCF "error"
+                    return []
+      Just d -> do
+                  --printPCF "SDecls: \n"
+                  --printPCF $ show d
+                  ptm <- sModuleToModule d
+                  --printPCF "\nDecls: \n"
+                  --printPCF $ show ptm
+                  btc <- runCC ptm
+                  --printPCF "\nClosureConversion: \n"
+                  --printPCF $ show btc
+                  return btc
+                  --return []
+
+-----------------------
+-- Generate LLVM
+-----------------------
+
+genLLVMfromFiles :: MonadPCF m => [String] -> m ()
+genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
+
+genLLVMfromFile :: MonadPCF m => String -> m Module
+genLLVMfromFile f = do 
+                      cc <- closureConvertFile f
+                      let llvm = codegen (runCanon cc)
+                      return llvm `debug` (L.unpack (ppllvm llvm))
+                      
+-----------------------
+-- Run LLVM
+-----------------------
+  
+runLLVMfromFiles :: MonadPCF m => [String] -> m ()                      
+runLLVMfromFiles = mapM_ runLLVMfromFile
+
+runLLVMfromFile :: MonadPCF m => String -> m ()                      
+runLLVMfromFile filename = do llvm <- genLLVMfromFile filename
+                              let commandline = "clang -Wno-override-module output.ll runtime.c -lgc -o prog"
+                              liftIO $ TIO.writeFile "output.ll" (L.toStrict (ppllvm llvm)) 
+                              liftIO $ system commandline
+                              return ()
+
+-----------------------
+-- Pretty Print
+-----------------------
+
+-- | Hace el pretty print del termino con SS, terminos con nombres y terminos con indices de Bruijin --TODO usar pretty printer
+printPhrase   :: MonadPCF m => String -> m ()
+printPhrase x =
+  do
+    sterm <- parseIO "<interactive>" tm x
+    printPCF "STerm:"
+    printPCF (show sterm)
+    nterm <- desugar sterm
+    printPCF "\nNTerm:"
+    printPCF (show nterm)
+    let ex = elab' nterm
+    t  <- case nterm of 
+           (V p f) -> maybe ex id <$> lookupDecl f
+           _       -> return ex  
+    printPCF "\nTerm:"
+    printPCF (show t)
+
+-----------------------
+-- Type Checker
+-----------------------
+
+typeCheckPhrase :: MonadPCF m => String -> m ()
+typeCheckPhrase x = do
+         t <- parseIO "<interactive>" tm x
+         --printPCF "STerm:"
+         --printPCF (show t)
+         tt <- elab t 
+         --printPCF "Term:"
+         --printPCF (show tt)
+         s <- get
+         ty <- tc tt (tyEnv s)
+         --printPCF (ppTy ty)
+
+
+-----------------------
+-- Funciones Auxiliares
+-----------------------
+
+-- | Toma un nombre de archivo, un parser y el contenido del archivo, ejecuta el parser y devuelve m [SDecl STerm], o falla
 parseIO ::  MonadPCF m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
                           Left e  -> throwError (ParseErr e)
                           Right r -> return r
 
+-- | Toma una lista de declaraciones con SS y devuelve un listado de declaraciones
+sModuleToModule :: MonadPCF m => [SDecl STerm] -> m [Decl Term] 
+sModuleToModule [] = failPCF "No se introdujo ningún archivo"
+sModuleToModule [x] = do dx <- handleDecl x
+                         return $ maybeToList dx
+sModuleToModule (x:xs) = do dx  <- handleDecl x
+                            dxs <- sModuleToModule xs
+                            return $ (maybeToList dx) ++ dxs
 
--- TODO: Antes era de la forma MonadPCF m => SDecl STerm -> m (), hacerlo compatible
-handleDecl ::  MonadPCF m => SDecl STerm -> m (Decl Term)
+-- | Manejo de declaraciones
+handleDecl ::  MonadPCF m => SDecl STerm -> m (Maybe (Decl Term))
 handleDecl decl = do
                   nd <- desugarDec decl
                   case nd of
                     Just (Decl p x t) -> do
                       let tt = elab' t
                       tcDecl (Decl p x tt)
-                      return (Decl p x tt)
-                      --te <- eval tt
-                      --addDecl (Decl p x te)
-                    _ -> failPCF "error handle dec"
+                      return $ Just (Decl p x tt)
+                    _ -> return Nothing --Nothing es una declaración de sinonimo de tipos
 
-sModuleToModule :: MonadPCF m => [SDecl STerm] -> m [Decl Term]
-sModuleToModule [] = failPCF "No se introdujo ningún archivo"
-sModuleToModule [x] = do dx <- handleDecl x
-                         return [dx]
-sModuleToModule (x:xs) = do dx <- handleDecl x
-                            dxs <- sModuleToModule xs
-                            return $ dx : dxs
+-- | Toma un archivo y recupera una lista de declaraciones
+fileToDecls :: MonadPCF m => String -> m (Maybe [SDecl STerm])
+fileToDecls f = do
+                  printPCF ("Abriendo "++f++"...")
+                  let filename = reverse(dropWhile isSpace (reverse f))
+                  x <- liftIO $ catch (readFile filename) 
+                            (\e -> do let err = show (e :: IOException) 
+                                      hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
+                                      return "")
+                  decls <- catchErrors (parseIO filename program x)
+                  return decls

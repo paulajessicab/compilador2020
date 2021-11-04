@@ -21,9 +21,10 @@ import MonadPCF
 desugar :: MonadPCF m => STerm -> m NTerm
 desugar (SV p v)                   = return $ V p v
 desugar (SConst p c)               = return $ Const p c
-desugar (SUnaryOp p op)            = case op of
-                                        Succ -> return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p Add (V p "x") (Const p (CNat 1)))
-                                        _    -> return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p Sub (V p "x") (Const p (CNat 1)))
+desugar (SUnaryOp p op)            = return $ Lam p "x" NatTy (UnaryOp p op (V p "x"))
+                                      --case op of
+                                      --  Succ -> return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p Add (V p "x") (Const p (CNat 1)))
+                                      --  _    -> return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p Sub (V p "x") (Const p (CNat 1)))
 desugar (SBinaryOp p op)           = return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p op (V p "x") (V p "y"))
 desugar (SLam p [] _)              = failPosPCF p "Numero de argumentos incorrecto para Lam"
 desugar (SLam p [b] t)             = do 
@@ -36,9 +37,10 @@ desugar (SLam p (b:bs) t)          = do
                                     return $ Lam p (fst b) ty term
 desugar (SApp p (SUnaryOp _ op) a) = do   
                                       t <- desugar a
-                                      case op of
-                                        Succ -> return $ BinaryOp p Add t (Const p (CNat 1))
-                                        _    -> return $ BinaryOp p Sub t (Const p (CNat 1))
+                                      return $ UnaryOp p op t
+                                      --case op of
+                                      --  Succ -> return $ BinaryOp p Add t (Const p (CNat 1))
+                                      --  _    -> return $ BinaryOp p Sub t (Const p (CNat 1))
 desugar (SApp p (SApp _ a (SBinaryOp _ op)) b) = do
                                                   da <- desugar a
                                                   db <- desugar b
@@ -117,7 +119,7 @@ elab' (BinaryOp p op a b)   = BinaryOp p op (elab' a) (elab' b)
 elab' (App p h a)           = App p (elab' h) (elab' a)
 elab' (Fix p f fty x xty t) = Fix p f fty x xty (closeN [f, x] (elab' t))
 elab' (IfZ p c t e)         = IfZ p (elab' c) (elab' t) (elab' e)
---elab' (UnaryOp i o t)       = UnaryOp i o (elab' t)
+elab' (UnaryOp i o t)       = UnaryOp i o (elab' t) --ver
 elab' (Let p v ty e1 e2)    = Let p v ty (elab' e1) (close v (elab' e2)) 
 
 {-

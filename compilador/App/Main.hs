@@ -29,19 +29,20 @@ import Global ( GlEnv(..) )
 import Elab ( elab, desugar, desugarDec, elab',desugarDec )
 import Eval ( eval )
 import TypeChecker ( tc, tcDecl )
-import PPrint ( pp , ppTy )
+import PPrint ( ppTy )
 import MonadPCF
 import Common ()
 import ClosureConversion
 import System.Console.Haskeline ( defaultSettings, getInputLine, runInputT, InputT )
 import CEK (evalCEK, valToTerm)
-import CIR (runCanon, CanonProg)
+import CIR (runCanon)
 import InstSel (codegen)
 import LLVM.AST (Module)
 import qualified Data.Text.Lazy as L
 import qualified Data.Text.IO as TIO
 import System.Process (system)
 import Data.Maybe(maybeToList)
+import Optimizations(constantFolding)
 
 import LLVM.Pretty (ppllvm)
 
@@ -331,10 +332,10 @@ closureConvertFile f = do
                   ptm <- sModuleToModule d
                   --printPCF "\nDecls: \n"
                   --printPCF $ show ptm
-                  btc <- runCC ptm
+                  cc <- runCC ptm
                   --printPCF "\nClosureConversion: \n"
                   --printPCF $ show btc
-                  return btc
+                  return cc
                   --return []
 
 -----------------------
@@ -347,8 +348,9 @@ genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
 genLLVMfromFile :: MonadPCF m => String -> m Module
 genLLVMfromFile f = do 
                       cc <- closureConvertFile f
-                      let llvm = codegen (runCanon cc)
-                      return llvm `debug` (L.unpack (ppllvm llvm))
+                      let opt = constantFolding cc
+                      let llvm = codegen (runCanon opt)
+                      return llvm --`debug` (L.unpack (ppllvm llvm))
                       
 -----------------------
 -- Run LLVM
@@ -362,6 +364,7 @@ runLLVMfromFile filename = do llvm <- genLLVMfromFile filename
                               let commandline = "clang -Wno-override-module output.ll runtime.c -lgc -o prog"
                               liftIO $ TIO.writeFile "output.ll" (L.toStrict (ppllvm llvm)) 
                               liftIO $ system commandline
+                              liftIO $ system "./prog"
                               return ()
 
 -----------------------
@@ -398,7 +401,9 @@ typeCheckPhrase x = do
          --printPCF "Term:"
          --printPCF (show tt)
          s <- get
-         ty <- tc tt (tyEnv s)
+         --ty <- tc tt (tyEnv s)
+         tc tt (tyEnv s)
+         return ()
          --printPCF (ppTy ty)
 
 

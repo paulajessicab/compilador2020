@@ -147,41 +147,18 @@ one :: Operand
 one = cint 1
 
 cgExpr :: CIR.Expr -> M LLVM.AST.Instruction
--- FIXME: duplicación
-cgExpr (BinOp Lang.Add v1 v2) = do
-  v1 <- cgV v1
-  v2 <- cgV v2
-  vf1 <- freshName
-  vf2 <- freshName
-  r <- freshName
-  tell [vf1 := PtrToInt v1 integer []]
-  tell [vf2 := PtrToInt v2 integer []]
-  tell [r := Add False False
-               (LocalReference integer vf1)
-               (LocalReference integer vf2)
-               []]
-  return (IntToPtr (LocalReference integer r) ptr [])
-
-cgExpr (BinOp Lang.Sub v1 v2) = do
-  v1 <- cgV v1
-  v2 <- cgV v2
-  vf1 <- freshName
-  vf2 <- freshName
-  r <- freshName
-  r' <- freshName
-  r'64 <- freshName
-  r'' <- freshName
-  tell [vf1 := PtrToInt v1 integer []]
-  tell [vf2 := PtrToInt v2 integer []]
-  tell [r := Sub False False
-               (LocalReference integer vf1)
-               (LocalReference integer vf2)
-               []]
-  tell [r' := ICmp IP.SLT (cint 0) (LocalReference integer r) []]
-  tell [r'64 := ZExt (LocalReference i1 r') integer []]
-  tell [r'' := Mul False False (LocalReference integer r)
-                               (LocalReference integer r'64) []]
-  return (IntToPtr (LocalReference integer r'') ptr [])
+cgExpr (BinOp op v1 v2) = do 
+                            v1 <- cgV v1
+                            v2 <- cgV v2
+                            vf1 <- freshName
+                            vf2 <- freshName
+                            r <- freshName
+                            tell [vf1 := PtrToInt v1 integer []]
+                            tell [vf2 := PtrToInt v2 integer []]
+                            case op of
+                              Lang.Add -> do tell [r := Add False False (LocalReference integer vf1) (LocalReference integer vf2) []]
+                              Lang.Sub -> do tell [r := Sub False False (LocalReference integer vf1) (LocalReference integer vf2) []]
+                            return (IntToPtr (LocalReference integer r) ptr [])
 
 {-cgExpr (BinOp Lang.Prod v1 v2) = do
   v1 <- cgV v1
@@ -225,13 +202,11 @@ cgExpr (CIR.Phi brs) = do
                                 return (op, mkName loc)) brs
   return $ LLVM.AST.Phi ptr args []
 
--- truchísimo
 cgExpr (V v) = do
   v' <- cgV v
   vf <- freshName
   tell [vf := PtrToInt v' integer []]
   return (IntToPtr (LocalReference integer vf) ptr [])
-  --cgExpr (BinOp Lang.Add v (C 0))
 
 cgExpr (CIR.Call v args) = do
  v <- cgV v

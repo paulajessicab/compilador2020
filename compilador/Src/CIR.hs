@@ -2,8 +2,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module CIR where
 
-import ClosureConversion (IrDecl, IrTm, IrDecl(IrVal,IrFun), IrTm(IrVar, IrConst, IrBinaryOp, IrIfZ, MkClosure, IrCall, IrLet, IrAccess))
-import Lang ( BinaryOp, Name, UnaryOp(Print), Const(CNat) )
+import ClosureConversion (IrDecl, IrTm, IrDecl(IrVal,IrFun), IrTm(IrVar, IrConst, IrUnaryOp, IrBinaryOp, IrIfZ, MkClosure, IrCall, IrLet, IrAccess))
+import Lang (BinaryOp, Name, UnaryOp(Print), Const(CNat) )
 import Data.List (intercalate, sortBy)
 import Control.Monad
 import Control.Monad.Writer.Lazy
@@ -228,6 +228,12 @@ canon (IrCall t xs)       = do
                                             addInstruction $ Assign (Temp r) c
                                             return $ R $ Temp r
 canon (IrConst (CNat i))  = return $ V $ C $ i
+canon (IrUnaryOp op a) = do 
+                            ra <- freshRegName
+                            ca <- canon a
+                            let va = Temp ra
+                            addInstruction $ Assign va ca
+                            return $ UnOp op (R va)
 canon (IrBinaryOp op a b) = do
                               ra <- freshRegName
                               rb <- freshRegName

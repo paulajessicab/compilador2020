@@ -105,12 +105,11 @@ bytecode de e, para poder saltar.
 
 bc :: MonadPCF m => Term -> m Bytecode
 bc (Const _ (CNat n)) = return [CONST,n]
-{-bc (UnaryOp _ unop e) = do
+bc (UnaryOp _ unop e) = do
                           bce <- bc e
                           case unop of
                             Succ -> return $ bce ++ [SUCC]   
                             _    -> return $ bce ++ [PRED]
-                            -}
 -- Escribo la suma y la resta con notacion polaca inversa
 bc (BinaryOp _ op a b) = do 
                             bca <- bc a
@@ -171,16 +170,23 @@ tailbc t                = do
 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
 bytecompileModule m = do minn <- bcModuleInner m
-                         ctp <- bc minn --`debug` ("bytecompileModule " ++ show minn)
+                         ctp <- bc minn
                          return $ ctp ++ [PRINT, STOP]
 
 bcModuleInner :: MonadPCF m => Module -> m Term
 bcModuleInner [] = failPCF "No code to load"
-bcModuleInner [Decl p v e] = do tce <- tc e []
-                                return $ Let p v tce e (close v e)
+bcModuleInner [Decl p v e] = do --tcv <- lookupTy v
+                                --case tcv of
+                                --  Just tv -> return $ Let p v tv e (close v e)
+                                --  _ -> failPCF "error"
+                                return $ Let p v NatTy e (close v e)
 bcModuleInner ((Decl p v e):xs) = do mxs <- bcModuleInner xs
-                                     tce <- tc e [] --Ver si el entorno de evaluación es el correcto 
-                                     return $ Let p v tce e (close v mxs)
+                                     --tcv <- lookupTy v
+                                     --case tcv of
+                                      -- Just tv -> return $ Let p v tv e (close v mxs)
+                                      -- _ -> failPCF "error"
+                                     return $ Let p v NatTy e (close v mxs)
+                                     
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo 
 bcWrite :: Bytecode -> FilePath -> IO ()

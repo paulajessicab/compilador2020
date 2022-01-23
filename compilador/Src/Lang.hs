@@ -106,18 +106,20 @@ getInfo (Const i _) = i
 getInfo (Lam i _ _ _) = i
 getInfo (App i _ _ ) = i
 getInfo (BinaryOp i _ _ _) = i
+getInfo (UnaryOp i _ _ ) = i
 getInfo (Fix i _ _ _ _ _) = i
 getInfo (IfZ i _ _ _) = i
 getInfo (Let i _ _ _ _) = i
 
 -- | Obtiene las variables libres de un término.
 freeVars :: Tm info Var -> [Name]
-freeVars (V _ (Free v))    = [v]
-freeVars (V _ _)           = []
-freeVars (Lam _ _ _ t)     = freeVars t
-freeVars (App _ l r)       = freeVars l ++ freeVars r
+freeVars (V _ (Free v))     = [v]
+freeVars (V _ _)            = []
+freeVars (Lam _ _ _ t)      = freeVars t
+freeVars (App _ l r)        = freeVars l ++ freeVars r
 freeVars (BinaryOp _ _ l r) = freeVars l ++ freeVars r
-freeVars (Fix _ _ _ _ _ t) = freeVars t
-freeVars (IfZ _ c t e)     = freeVars c ++ freeVars t ++ freeVars e
-freeVars (Const _ _)       = []
-freeVars (Let _ x _ v t)       = freeVars v ++ (delete x (freeVars t))
+freeVars (UnaryOp _ _ t)    = freeVars t
+freeVars (Fix _ _ _ _ _ t)  = freeVars t
+freeVars (IfZ _ c t e)      = freeVars c ++ freeVars t ++ freeVars e
+freeVars (Const _ _)        = []
+freeVars (Let _ x _ v t)    = freeVars v ++ (delete x (freeVars t))

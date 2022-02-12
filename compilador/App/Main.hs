@@ -46,6 +46,11 @@ import Optimizations(constantFolding)
 
 import LLVM.Pretty (ppllvm)
 
+import InlineExpansion(countFunctionCalls, inline, deadCodeElimination)  -- Sacar count function calls, debe ser interno 
+
+import Data.Map (Map) -- TODO sacar data.map
+import qualified Data.Map as Map
+
 --debug = flip trace
 
 data Mode = Interactive
@@ -330,11 +335,23 @@ closureConvertFile f = do
                   --printPCF "SDecls: \n"
                   --printPCF $ show d
                   ptm <- sModuleToModule d
-                  --printPCF "\nDecls: \n"
-                  --printPCF $ show ptm
-                  cc <- runCC ptm
-                  --printPCF "\nClosureConversion: \n"
-                  --printPCF $ show btc
+                  printPCF "\nDecls: \n"
+                  printPCF $ show ptm
+                  printPCF "\nConteo de funciones: \n"
+                  --printPCF $ show $ Map.assocs $ Map.filter (== 1) $ countFunctionCalls ptm
+                  -- tc y adddecl
+                  mapM_ addDecl ptm
+                  printPCF $ show $ Map.assocs $ countFunctionCalls ptm
+                  printPCF "\nInlining: \n"
+                  inlined <- inline ptm (Map.filter (== 1) $ countFunctionCalls ptm)
+                  printPCF $ show $ inlined
+                  printPCF "\nDead Code Elimination: \n"
+                  dce <- deadCodeElimination inlined
+                  printPCF $ show $ dce
+                  cc <- runCC dce
+                  printPCF "\nClosureConversion: \n"
+                  printPCF $ show cc
+                   --TODO SACAR inline exp
                   return cc
                   --return []
 

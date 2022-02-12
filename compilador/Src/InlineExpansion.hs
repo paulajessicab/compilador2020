@@ -9,16 +9,15 @@ Stability   : experimental
 -}
 module InlineExpansion where
 
-import Data.Map (Map, empty, lookup, adjust, insertWith)
+import Data.Map (Map, empty, lookup, adjust, insertWith, delete)
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State.Lazy
 import Debug.Trace
 import MonadPCF (MonadPCF, failPCF, lookupDecl, printPCF)
---import ClosureConversion(IrDecl, IrTm(IrConst,IrAccess, IrBinaryOp, IrCall, MkClosure, IrIfZ, IrLet, IrUnaryOp, IrVar), IrDecl(IrVal, IrFun))
---import Lang(Const(CNat), Name, UnaryOp( Pred, Succ ), BinaryOp(Add, Sub) )
 import Lang
 import Data.List(foldl')
+import Subst(subst)
 
 debug = flip trace
 
@@ -53,16 +52,14 @@ optimizationLimit = 3
 
 
 
--- Cuenta la cantidadd de veces que se llamó a cada funcion -- Ver si hacerla para todas las funciones o solo para las que tengan llamadas y si el orden importa
+-- Cuenta la cantidadd de veces que se llamo a cada funcion -- Ver si hacerla para todas las funciones o solo para las que tengan llamadas y si el orden importa
 -- Toma una lista de declaraciones
 -- Devuelve un diccionario con los nombres de las funciones como clave y la cantidad de llamadas como valor 
 
 
 
 countFunctionCalls :: [Decl Term] -> Map Name Int
-countFunctionCalls decls = let t = foldl' countFnCallsDecl Data.Map.empty decls
-                           in t
-
+countFunctionCalls decls = foldl' countFnCallsDecl Data.Map.empty decls
 
 countFnCallsDecl :: Map Name Int -> Decl Term -> Map Name Int
 countFnCallsDecl onceApplied (Decl p n (Lam i v tv t)) = countFnCallsTerm (Map.insertWith (+) n 0 onceApplied) t -- Si encuentro una función la agrego al mapeo, tengo que aplicarlo a t primero
@@ -120,6 +117,10 @@ inlineT names fv@(V _ (Free n)) = case Data.Map.lookup n names of
                                                       Nothing -> failPCF "No encontrado"
 inlineT names v@(V _ (Bound _)) = return v
 inlineT names c@(Const _ _) = return c
+inlineT names (App i (Lam _ x tx t) b) = do case b of
+                                              (Const _ _) -> return $ subst b t
+                                              (V _ _) -> return $ subst b t
+                                              _ -> return $ Let i "_prueba" tx b t
 inlineT names (Lam i v tv t) = do ti <- inlineT names t
                                   return $ Lam i v tv ti
 inlineT names (Let i n ty a b) = do ai <- inlineT names a
@@ -140,48 +141,40 @@ inlineT names (IfZ i c a b) = do  ci <- inlineT names c
                                   bi <- inlineT names b
                                   return $ IfZ i ci ai bi
 
+--
+ctFunctionCalls :: [Decl Term] -> Map Name Int
+ctFunctionCalls decls = let (Decl p n t) = last decls
+                            names = foldl' countFnCallsDecl Data.Map.empty decls
+                        in Data.Map.delete n names 
+
+ctFnCallsDecl :: Map Name Int -> Decl Term -> Map Name Int
+ctFnCallsDecl onceApplied (Decl p n t) = ctFnCallsTerm (Map.insertWith (+) n 0 onceApplied) t -- Si encuentro una función la agrego al mapeo, tengo que aplicarlo a t primero
+
+ctFnCallsTerm :: Map Name Int -> Term -> Map Name Int
+-- cuento todas las llamadas a variables libres
+ctFnCallsTerm onceApplied (V i (Free n)) = Data.Map.adjust (1+) n onceApplied
+ctFnCallsTerm onceApplied (Lam i v tv t) = countFnCallsTerm onceApplied t
+ctFnCallsTerm onceApplied (Let i n ty a b) = countFnCallsTerm (countFnCallsTerm onceApplied a) b
+ctFnCallsTerm onceApplied (App i a b) = countFnCallsTerm (countFnCallsTerm onceApplied a) b
+ctFnCallsTerm onceApplied (BinaryOp _ _ a b) = countFnCallsTerm (countFnCallsTerm onceApplied a) b
+ctFnCallsTerm onceApplied (UnaryOp _ _ a) = countFnCallsTerm onceApplied a
+ctFnCallsTerm onceApplied (Fix _ _ _ _ _ t) = countFnCallsTerm onceApplied t
+ctFnCallsTerm onceApplied (IfZ _ c a b) = let cc = countFnCallsTerm onceApplied c
+                                              ca = countFnCallsTerm cc a
+                                          in countFnCallsTerm ca b
+ctFnCallsTerm onceApplied t = onceApplied --constante
 
 
+-- Dead code elimination 
+deadCodeElimination :: MonadPCF m => [Decl Term] ->  m [Decl Term]
+deadCodeElimination decls = let names = ctFunctionCalls decls 
+                            in deadCodeElimination' (Map.filter (== 0) names) decls
 
-
-
-
-
-
-
-
-
-{-
-countFunctionCalls :: [IrDecl] -> Map Name Int
-countFunctionCalls ds = Map.unionsWith (+) $ map (\x -> countFnCallsDecl x Map.empty) ds-- unir los diccionarios
-
-
-
-countFnCallsDecl :: IrDecl -> Map Name Int -> Map Name Int
-countFnCallsDecl (IrVal name (MkClosure cloName _)) fs = Map.insertWith (+) name 0 fs--let c = Data.Map.lookup name fs
-                                                         --case c of 
-                                                           -- Nothing -> Map.insertWith (+) name 0 fs
-                                                           -- Just i -> fs-- ver entornos de closure- Seguramente no los necesite, pero ver porque son tm --Error? Ya definida
-countFnCallsDecl (IrVal name t) fs = countFnCallsTerm t fs
-countFnCallsDecl (IrFun name ar args t) fs = countFnCallsTerm t fs
-
-
-countFnCallsTerm :: IrTm -> Map Name Int -> Map Name Int
-countFnCallsTerm (IrLet _ (IrVar fnName) (IrCall (IrAccess (IrVar _) 0) params)) fns = Map.insertWith (+) fnName 1 fns
-countFnCallsTerm (IrVar n) fns = fns
-countFnCallsTerm (IrCall body params) fns = let fns' = Map.unionsWith (+) $ map (\x -> countFnCallsTerm x Map.empty) params-- TODO acomodar
-                                            in Map.unionWith (+) fns fns'
-countFnCallsTerm (IrConst c) fns = fns
-countFnCallsTerm (IrUnaryOp _ t) fns = countFnCallsTerm t fns
-countFnCallsTerm (IrBinaryOp _ t1 t2) fns = let fns' = countFnCallsTerm t1 fns
-                                            in countFnCallsTerm t2 fns'
-countFnCallsTerm (IrLet n t1 t2) fns = let fns' = countFnCallsTerm t1 fns
-                                       in countFnCallsTerm t2 fns'
-countFnCallsTerm (IrIfZ c tt tf) fns =  let fnsc = countFnCallsTerm c fns
-                                            fnst = countFnCallsTerm tt fnsc
-                                        in countFnCallsTerm tf fnst
-countFnCallsTerm (MkClosure n params) fns = let f = Map.unionsWith (+) $ map (\x -> countFnCallsTerm x Map.empty) params -- TODO así está bien?
-                                            in Map.unionWith (+) f fns
-                                            --foldl (\acc t -> countFnCallsTerm t acc) fns params
-countFnCallsTerm (IrAccess t i) fns = countFnCallsTerm t fns -- TODO acomodar?
--}
+deadCodeElimination' :: MonadPCF m => Map Name Int -> [Decl Term] ->  m [Decl Term]
+deadCodeElimination' names d@[(Decl _ n _)] = case Map.lookup n names of
+                                                Just i -> return []
+                                                Nothing -> return d
+deadCodeElimination' names (d:ds) = do
+                                      e <- deadCodeElimination' names [d]
+                                      es <- deadCodeElimination' names ds
+                                      return $ e ++ es  

@@ -42,14 +42,8 @@ import qualified Data.Text.Lazy as L
 import qualified Data.Text.IO as TIO
 import System.Process (system)
 import Data.Maybe(maybeToList)
-import Optimizations(constantFolding)
-
+import Optimizations (optimize)
 import LLVM.Pretty (ppllvm)
-
-import InlineExpansion(countFunctionCalls, inline, deadCodeElimination)  -- Sacar count function calls, debe ser interno 
-
-import Data.Map (Map) -- TODO sacar data.map
-import qualified Data.Map as Map
 
 --debug = flip trace
 
@@ -332,26 +326,18 @@ closureConvertFile f = do
                     printPCF "error"
                     return []
       Just d -> do
-                  --printPCF "SDecls: \n"
-                  --printPCF $ show d
+                  printPCF "SDecls: \n"
+                  printPCF $ show d
                   ptm <- sModuleToModule d
                   printPCF "\nDecls: \n"
                   printPCF $ show ptm
-                  printPCF "\nConteo de funciones: \n"
-                  --printPCF $ show $ Map.assocs $ Map.filter (== 1) $ countFunctionCalls ptm
-                  -- tc y adddecl
                   mapM_ addDecl ptm
-                  printPCF $ show $ Map.assocs $ countFunctionCalls ptm
                   printPCF "\nInlining: \n"
-                  inlined <- inline ptm (Map.filter (== 1) $ countFunctionCalls ptm)
-                  printPCF $ show $ inlined
-                  printPCF "\nDead Code Elimination: \n"
-                  dce <- deadCodeElimination inlined
-                  printPCF $ show $ dce
-                  cc <- runCC dce
+                  optimized <- optimize ptm
+                  printPCF $ show optimized
+                  cc <- runCC optimized
                   printPCF "\nClosureConversion: \n"
                   printPCF $ show cc
-                   --TODO SACAR inline exp
                   return cc
                   --return []
 
@@ -365,8 +351,8 @@ genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
 genLLVMfromFile :: MonadPCF m => String -> m Module
 genLLVMfromFile f = do 
                       cc <- closureConvertFile f
-                      let opt = constantFolding cc
-                      let llvm = codegen (runCanon opt)
+                      --let opt = constantFolding cc
+                      let llvm = codegen (runCanon cc)
                       return llvm --`debug` (L.unpack (ppllvm llvm))
                       
 -----------------------

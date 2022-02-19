@@ -66,8 +66,7 @@ getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
 tyvarP :: P STy
-tyvarP = do
-          SAliasTy <$> tyvar
+tyvarP = do (SAliasTy <$> tyvar)
 
 -- Ver si la suma es un atom tmb
 tyatom :: P STy

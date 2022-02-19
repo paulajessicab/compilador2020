@@ -1,125 +1,137 @@
 {-|
 Module      : Optimizations
-Description : Provee metodos de optimizacion para el compilador
+Description : Provee la implementacion de las optimizaciones para el compilador
 Copyright   : 
 License     : GPL-3
 Maintainer  : 
 Stability   : experimental
 
 -}
-module Optimizations where
+module Optimizations (optimize) where
 
-import Data.Map
+import Data.Map (Map, empty, lookup, adjust, insertWith, delete)
+import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State.Lazy
 import Debug.Trace
-
-import ClosureConversion(IrDecl, IrTm(IrConst,IrAccess, IrBinaryOp, IrCall, MkClosure, IrIfZ, IrLet, IrUnaryOp, IrVar), IrDecl(IrVal, IrFun))
-import Lang(Const(CNat), Name, UnaryOp( Pred, Succ ), BinaryOp(Add, Sub) )
+import MonadPCF (MonadPCF, failPCF, lookupDecl, printPCF)
+import Lang
+import Data.List(foldl')
+import Subst(subst)
 
 debug = flip trace
 
+optimizationLimit = 3
+
+-- | Optimize
+-- | Aplica una serie de optimizaciones optimizationLimit veces. 
+optimize :: MonadPCF m => [Decl Term] -> m [Decl Term] 
+optimize decls = optimize' optimizationLimit decls
+
+optimize' :: MonadPCF m => Int -> [Decl Term] -> m [Decl Term]
+optimize' 0 decls = return decls
+optimize' 1 decls = inline decls >>= deadCodeElimination
+optimize' n decls = optimize' 1 decls >>= optimize' (n-1)
 
 
--- Constant Propagation: Reemplazo las variables que representan constantes por las constantes en sí
--- Constant Folding: Si todos los términos de una operación son constantes, opero y reemplazo la operación por el resultado
--- Constant Conditions: Si llego a una constante en la condición del ifz, evaluo si es 0 y dejo solo el branch que corresponde.
--- Unreachable code elimination: Saco el código que inalcanzable.
---                               Por ejemplo, si elimino una de las ramas, puede que haya código al que se llamaba solo desde ahí, y ya no es necesario.
--- Inlining: Reemplazo ciertas llamadas a funciones por sus definiciones.
+-- | Inline Optimization
+-- | 
+inline :: MonadPCF m => [Decl Term] -> m [Decl Term]
+inline decls = inlineN names decls
+               where names = Map.filter (== 1) $ ctFunctionCalls decls
 
+inlineN :: MonadPCF m => Map Name Int -> [Decl Term] -> m [Decl Term]
+inlineN names decls = mapM (inlineD names) decls
 
--- Cuándo paro?
+inlineD :: MonadPCF m => Map Name Int -> Decl Term -> m (Decl Term)
+inlineD names (Decl p n t) = do inlined <- inlineT names t
+                                return $ Decl p n inlined
 
+-- Si la variable libre aparece en el map, reemplazo
+-- Si es una constante o una variable -> reemplazo..
+-- Para el caso del App, trabajar en la sustitución
+inlineT :: MonadPCF m => Map Name Int -> Term -> m (Term)
+inlineT names fv@(V _ (Free n)) = case Data.Map.lookup n names of 
+                                      Just 1 ->  do d <- lookupDecl n
+                                                    case d of 
+                                                        Just t -> return t
+                                                        Nothing -> failPCF "No encontrado"
+                                      Nothing -> do d <- lookupDecl n 
+                                                    case d of 
+                                                      Just (Const i (CNat c)) -> return (Const i (CNat c))
+                                                      Just t -> return fv
+                                                      Nothing -> failPCF "No encontrado"
+inlineT names v@(V _ (Bound _)) = return v
+inlineT names c@(Const _ _) = return c
+inlineT names (App i (Lam _ x tx t) b) = do case b of
+                                              (Const _ _) -> return $ subst b t
+                                              (V _ _) -> return $ subst b t
+                                              _ -> return $ Let i "_prueba" tx b t --TODO cambiar nombre
+inlineT names (Lam i v tv t) = do ti <- inlineT names t
+                                  return $ Lam i v tv ti
+inlineT names (Let i n ty a b) = do ai <- inlineT names a
+                                    bi <- inlineT names b
+                                    return $ Let i n ty ai bi
+inlineT names (App i a b) = do ai <- inlineT names a
+                               bi <- inlineT names b
+                               return (App i ai bi)
+inlineT names (BinaryOp i op a b) = do ai <- inlineT names a
+                                       bi <- inlineT names b
+                                       return $ BinaryOp i op ai bi
+inlineT names (UnaryOp i op t) = do ti <- inlineT names t
+                                    return $ UnaryOp i op ti
+inlineT names (Fix i n ty n2 ty2 t) = do ti <- inlineT names t -- Ver si no hay que hacer un tratamiento especial
+                                         return $ Fix i n ty n2 ty2 ti
+inlineT names (IfZ i c a b) = do  ci <- inlineT names c
+                                  ai <- inlineT names a
+                                  bi <- inlineT names b
+                                  return $ IfZ i ci ai bi
 
+-- | Dead code elimination 
+deadCodeElimination :: MonadPCF m => [Decl Term] ->  m [Decl Term]
+deadCodeElimination decls = deadCodeElimination' (Map.filter (== 0) names) decls  --`debug` ("--"++show names ++ "Decls: " ++ show decls)
+                            where (Decl _ n _) = last decls
+                                  refs = ctReferences decls
+                                  names = Data.Map.delete n refs -- el ultimo elemento es el retorno
 
- -- Hacer inlining + esto. Tomar como criterio, por ejemplo, cuando deja de tener cambios o una cota máxima.
- -- Criterio para decidir cuándo hacer inlining?
+deadCodeElimination' :: MonadPCF m => Map Name Int -> [Decl Term] ->  m [Decl Term]
+deadCodeElimination' names [] = return []
+deadCodeElimination' names d@[(Decl _ n _)] = case Map.lookup n names of
+                                                Just i -> return []
+                                                Nothing -> return d
+deadCodeElimination' names (d:ds) = do
+                                      e <- deadCodeElimination' names [d]
+                                      es <- deadCodeElimination' names ds
+                                      return $ e ++ es  
 
--- Esto vendría a ser similar a Sparse conditional constant propagation?
+-- | Cuenta la cantidad de veces que se desreferencia una variable de tipo funcion
+-- | Se ignora la última declaracion
+ctFunctionCalls :: [Decl Term] -> Map Name Int
+ctFunctionCalls decls = foldl' ctFnCallsDecl Data.Map.empty decls
+    
+ctFnCallsDecl :: Map Name Int -> Decl Term -> Map Name Int
+ctFnCallsDecl onceApplied (Decl p n t) = countUsage True (Map.insertWith (+) n 0 onceApplied) t
 
+-- | Count decls
+ctReferences decls = foldl' ctReferencesDecl Data.Map.empty decls
+                        
+ctReferencesDecl names (Decl p n t) = countUsage False (Map.insertWith (+) n 0 names) t
 
-
-
-
-
-
--- Guarda el mapeo de constantes computadas y el entero que indica si en la iteración pasada se guardó una nueva constante
-type ConstantsStorage = (Map Name IrTm, Int)
-
--- Toma una [IrDecl] y devuelve una [IrDecl]
-
-constantFolding :: [IrDecl] -> [IrDecl]
-constantFolding decls = runConstantFolding decls 0 --`debug` (show (decls))
-
---Para cada elemento de la lista, 
--- * Si es canonVal, me guardo el valor
--- * Si es CanonFun y es una operación aritmética, intento buscar si sus operandos están definidos. Si llego a las constantes, opero (y pongo el canonval?)
-runConstantFolding :: [IrDecl] -> Int -> [IrDecl]
-runConstantFolding decls n = let (v, s) = runState (constantFolding'  decls) (Data.Map.empty, 0)
-                        in if (snd s) > n -- Si guardé una variable nueva en la iteración anterior
-                           then runConstantFolding v (snd s)  --`debug` ("Then " ++ show (v)) 
-                           else v --`debug` ("Else " ++ show (snd s)) 
-
-constantFolding' :: [IrDecl] -> State ConstantsStorage [IrDecl] 
-constantFolding' ds = mapM constantFoldDecl ds
-
-
-constantFoldDecl :: IrDecl -> State ConstantsStorage IrDecl
-constantFoldDecl (IrVal name t) = do t' <- constantFoldTerm name t
-                                     return $ IrVal name t'
-constantFoldDecl (IrFun name ar args t) = do t' <- constantFoldTerm "" t
-                                             return $ IrFun name ar args t'
-
-
-constantFoldTerm :: Name -> IrTm -> State ConstantsStorage IrTm
-constantFoldTerm _ t@(IrVar n) = do 
-                                    s <- get
-                                    let c = Data.Map.lookup n (fst s)
-                                    case c of 
-                                        Nothing -> return t
-                                        Just (IrConst (CNat c)) -> return $ IrConst (CNat c)
-constantFoldTerm "" t@(IrConst (CNat c)) = do return t
-constantFoldTerm name t@(IrConst (CNat c)) = do 
-                                                s <- get  
-                                                put $ (insert name (IrConst (CNat c)) (fst s), (snd s) + 1)
-                                                return t
-constantFoldTerm _ (IrUnaryOp op t) = do 
-                                            t' <- constantFoldTerm "" t
-                                            case (op, t') of
-                                                (Succ, IrConst (CNat n)) -> return $ IrConst (CNat (n+1))
-                                                (Pred, IrConst (CNat 0)) -> return $ IrConst (CNat 0) -- throw error
-                                                (Pred, IrConst (CNat n)) -> return $ IrConst (CNat (n-1))
-                                                _ -> return $ IrUnaryOp op t'
-constantFoldTerm _ (IrCall t ts) = do 
-                                        t' <- constantFoldTerm "" t
-                                        ts' <- mapM (constantFoldTerm "") ts
-                                        return $ IrCall t' ts'
-constantFoldTerm _ (IrBinaryOp op a b) = do 
-                                            a' <- constantFoldTerm "" a
-                                            b' <- constantFoldTerm "" b
-                                            case (op, a', b') of
-                                                (Add, IrConst (CNat n), IrConst (CNat m))  -> return $ IrConst (CNat (n+m))
-                                                (Sub, IrConst (CNat n), IrConst (CNat m))  -> return $ IrConst (CNat (n-m))
-                                                _ -> return $ IrBinaryOp op a' b'
-constantFoldTerm _ (IrLet n t b) = do 
-                                      t' <- constantFoldTerm "" t
-                                      b' <- constantFoldTerm "" b
-                                      return $ IrLet n t' b' 
-constantFoldTerm _ (IrIfZ c a b) = do 
-                                      c' <- constantFoldTerm "" c
-                                      case c' of
-                                            IrConst (CNat 0) -> do a' <- constantFoldTerm "" a
-                                                                   return a'
-                                            IrConst (CNat _) -> do b' <- constantFoldTerm "" b
-                                                                   return b'
-                                            _ -> do 
-                                                    a' <- constantFoldTerm "" a
-                                                    b' <- constantFoldTerm "" b
-                                                    return $ IrIfZ c' a' b'
-constantFoldTerm _ (MkClosure n ts) = do 
-                                        ts' <- mapM (constantFoldTerm "") ts
-                                        return $ MkClosure n ts'
-constantFoldTerm _ (IrAccess t n) = do  -- VER
-                                        t' <- constantFoldTerm "" t
-                                        return $ IrAccess t' n
+-- | Cuenta la cantidad de veces que se desreferencia una variable
+-- | justFnCalls = true => Solo cuenta desreferencias de variables de tipo funcion
+countUsage :: Bool -> Map Name Int -> Term -> Map Name Int
+countUsage justFnCalls refs (App _ (V i (Free n)) b) = let c = Data.Map.adjust (1+) n refs
+                                                       in countUsage justFnCalls c b --`debug` ("fncall: " ++ show refs)
+countUsage justFnCalls refs (V i (Free n)) = if justFnCalls
+                                             then refs --`debug` ("Sin cambios variable: " ++ show refs)
+                                             else Data.Map.adjust (1+) n refs --`debug` ("variable: " ++ show refs)
+countUsage justFnCalls refs (Lam i v tv t) = countUsage justFnCalls refs t
+countUsage justFnCalls refs (Let i n ty a b) = countUsage justFnCalls (countUsage justFnCalls refs a) b
+countUsage justFnCalls refs (App i a b) = countUsage justFnCalls (countUsage justFnCalls refs a) b
+countUsage justFnCalls refs (BinaryOp _ _ a b) = countUsage justFnCalls (countUsage justFnCalls refs a) b
+countUsage justFnCalls refs (UnaryOp _ _ a) = countUsage justFnCalls refs a
+countUsage justFnCalls refs (Fix _ _ _ _ _ t) = countUsage justFnCalls refs t
+countUsage justFnCalls refs (IfZ _ c a b) = let cc = countUsage justFnCalls refs c
+                                                ca = countUsage justFnCalls cc a
+                                            in countUsage justFnCalls ca b
+countUsage justFnCalls refs t = refs --`debug` ("Sin cambios: " ++ show refs) --const + bound

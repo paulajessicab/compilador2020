@@ -90,14 +90,15 @@ Pero me preocupaba más que fuera más permisivo, y que después haya que reescr
 const :: P Const
 const = CNat <$> num
 
-binding :: P (Name, STy)
-binding = do v <- var
+binding :: P [(Name, STy)]
+binding = do vars <- many1 var
              reservedOp ":"
              ty <- typeP
-             return (v, ty)
+             return $ map (\x -> (x, ty)) vars
 
 binders :: P [(Name, STy)]
-binders = many $ parens binding
+binders = do b <- many $ parens binding
+             return $ concat b
 
 unaryOpName :: P UnaryOp
 unaryOpName =

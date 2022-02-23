@@ -17,11 +17,11 @@ import Debug.Trace
 import MonadPCF (MonadPCF, failPCF, lookupDecl, printPCF)
 import Lang
 import Data.List(foldl')
-import Subst(subst)
+import Subst(subst, openN, substN)
 
 debug = flip trace
 
-optimizationLimit = 3
+optimizationLimit = 10
 
 -- | Optimize
 -- | Aplica una serie de optimizaciones optimizationLimit veces. 
@@ -37,15 +37,12 @@ optimize' n decls = optimize' 1 decls >>= optimize' (n-1)
 -- | Inline Optimization
 -- | 
 inline :: MonadPCF m => [Decl Term] -> m [Decl Term]
-inline decls = inlineN names decls
-               where names = Map.filter (== 1) $ ctFunctionCalls decls
+inline decls = mapM (inlineDecl names) decls --inlineN names decls
+               where names = Map.filter (== 1) $ countFunctionRefs decls
 
-inlineN :: MonadPCF m => Map Name Int -> [Decl Term] -> m [Decl Term]
-inlineN names decls = mapM (inlineD names) decls
-
-inlineD :: MonadPCF m => Map Name Int -> Decl Term -> m (Decl Term)
-inlineD names (Decl p n t) = do inlined <- inlineT names t
-                                return $ Decl p n inlined
+inlineDecl :: MonadPCF m => Map Name Int -> Decl Term -> m (Decl Term)
+inlineDecl names (Decl p n t) = do  inlined <- inlineT names t
+                                    return $ Decl p n inlined
 
 -- Si la variable libre aparece en el map, reemplazo
 -- Si es una constante o una variable -> reemplazo..
@@ -63,10 +60,10 @@ inlineT names fv@(V _ (Free n)) = case Data.Map.lookup n names of
                                                       Nothing -> failPCF "No encontrado"
 inlineT names v@(V _ (Bound _)) = return v
 inlineT names c@(Const _ _) = return c
-inlineT names (App i (Lam _ x tx t) b) = do case b of
-                                              (Const _ _) -> return $ subst b t
-                                              (V _ _) -> return $ subst b t
-                                              _ -> return $ Let i "_prueba" tx b t --TODO cambiar nombre
+inlineT names (App i fn@(Lam _ x tx t) b) = do case b of -- Todo acomodar esto, tengo que reemplazar el bound 0 por la variable?
+                                                  (Const _ _) -> return $ subst b t
+                                                  (V _ _) -> return $ subst b t
+                                                  _ -> return $ Let i "__opt_dummy_name" tx b t
 inlineT names (Lam i v tv t) = do ti <- inlineT names t
                                   return $ Lam i v tv ti
 inlineT names (Let i n ty a b) = do ai <- inlineT names a
@@ -87,11 +84,22 @@ inlineT names (IfZ i c a b) = do  ci <- inlineT names c
                                   bi <- inlineT names b
                                   return $ IfZ i ci ai bi
 
+-- | Obtiene nombres de variables frescas - Se podría mejorar (ver si hay que cortar en algun nro)
+--fresh :: MonadPCF m => m Name
+--fresh = fresh' 0
+--
+--fresh' :: MonadPCF m => Int -> m Name
+--fresh' n    = do d <- lookupDecl name
+--                 case d of
+--                    Just _  -> fresh' (n+1)
+--                    Nothing -> return name
+--                 where name = "__opt" ++ (show n)
+
 -- | Dead code elimination 
 deadCodeElimination :: MonadPCF m => [Decl Term] ->  m [Decl Term]
-deadCodeElimination decls = deadCodeElimination' (Map.filter (== 0) names) decls  --`debug` ("--"++show names ++ "Decls: " ++ show decls)
+deadCodeElimination decls = deadCodeElimination' (Map.filter (== 0) names) decls
                             where (Decl _ n _) = last decls
-                                  refs = ctReferences decls
+                                  refs = countRefs decls
                                   names = Data.Map.delete n refs -- el ultimo elemento es el retorno
 
 deadCodeElimination' :: MonadPCF m => Map Name Int -> [Decl Term] ->  m [Decl Term]
@@ -105,33 +113,32 @@ deadCodeElimination' names (d:ds) = do
                                       return $ e ++ es  
 
 -- | Cuenta la cantidad de veces que se desreferencia una variable de tipo funcion
--- | Se ignora la última declaracion
-ctFunctionCalls :: [Decl Term] -> Map Name Int
-ctFunctionCalls decls = foldl' ctFnCallsDecl Data.Map.empty decls
+countFunctionRefs :: [Decl Term] -> Map Name Int
+countFunctionRefs decls = foldl' countFunctionRefsDecl Data.Map.empty decls
     
-ctFnCallsDecl :: Map Name Int -> Decl Term -> Map Name Int
-ctFnCallsDecl onceApplied (Decl p n t) = countUsage True (Map.insertWith (+) n 0 onceApplied) t
+countFunctionRefsDecl :: Map Name Int -> Decl Term -> Map Name Int
+countFunctionRefsDecl onceApplied (Decl p n t) = countRefsTerm True (Map.insertWith (+) n 0 onceApplied) t
 
 -- | Count decls
-ctReferences decls = foldl' ctReferencesDecl Data.Map.empty decls
-                        
-ctReferencesDecl names (Decl p n t) = countUsage False (Map.insertWith (+) n 0 names) t
+countRefs :: [Decl Term] -> Map Name Int
+countRefs decls = foldl' ctReferencesDecl Data.Map.empty decls
+                  where ctReferencesDecl names (Decl p n t) = countRefsTerm False (Map.insertWith (+) n 0 names) t
 
 -- | Cuenta la cantidad de veces que se desreferencia una variable
 -- | justFnCalls = true => Solo cuenta desreferencias de variables de tipo funcion
-countUsage :: Bool -> Map Name Int -> Term -> Map Name Int
-countUsage justFnCalls refs (App _ (V i (Free n)) b) = let c = Data.Map.adjust (1+) n refs
-                                                       in countUsage justFnCalls c b --`debug` ("fncall: " ++ show refs)
-countUsage justFnCalls refs (V i (Free n)) = if justFnCalls
-                                             then refs --`debug` ("Sin cambios variable: " ++ show refs)
-                                             else Data.Map.adjust (1+) n refs --`debug` ("variable: " ++ show refs)
-countUsage justFnCalls refs (Lam i v tv t) = countUsage justFnCalls refs t
-countUsage justFnCalls refs (Let i n ty a b) = countUsage justFnCalls (countUsage justFnCalls refs a) b
-countUsage justFnCalls refs (App i a b) = countUsage justFnCalls (countUsage justFnCalls refs a) b
-countUsage justFnCalls refs (BinaryOp _ _ a b) = countUsage justFnCalls (countUsage justFnCalls refs a) b
-countUsage justFnCalls refs (UnaryOp _ _ a) = countUsage justFnCalls refs a
-countUsage justFnCalls refs (Fix _ _ _ _ _ t) = countUsage justFnCalls refs t
-countUsage justFnCalls refs (IfZ _ c a b) = let cc = countUsage justFnCalls refs c
-                                                ca = countUsage justFnCalls cc a
-                                            in countUsage justFnCalls ca b
-countUsage justFnCalls refs t = refs --`debug` ("Sin cambios: " ++ show refs) --const + bound
+countRefsTerm :: Bool -> Map Name Int -> Term -> Map Name Int
+countRefsTerm justFnCalls refs (App _ (V i (Free n)) b) = let c = Data.Map.adjust (1+) n refs
+                                                          in countRefsTerm justFnCalls c b
+countRefsTerm justFnCalls refs (V i (Free n)) = if justFnCalls
+                                                then refs
+                                                else Data.Map.adjust (1+) n refs
+countRefsTerm justFnCalls refs (Lam i v tv t) = countRefsTerm justFnCalls refs t
+countRefsTerm justFnCalls refs (Let i n ty a b) = countRefsTerm justFnCalls (countRefsTerm justFnCalls refs a) b
+countRefsTerm justFnCalls refs (App i a b) = countRefsTerm justFnCalls (countRefsTerm justFnCalls refs a) b
+countRefsTerm justFnCalls refs (BinaryOp _ _ a b) = countRefsTerm justFnCalls (countRefsTerm justFnCalls refs a) b
+countRefsTerm justFnCalls refs (UnaryOp _ _ a) = countRefsTerm justFnCalls refs a
+countRefsTerm justFnCalls refs (Fix _ _ _ _ _ t) = countRefsTerm justFnCalls refs t
+countRefsTerm justFnCalls refs (IfZ _ c a b) =  let  cc = countRefsTerm justFnCalls refs c
+                                                     ca = countRefsTerm justFnCalls cc a
+                                                in countRefsTerm justFnCalls ca b
+countRefsTerm justFnCalls refs t = refs

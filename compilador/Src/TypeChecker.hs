@@ -10,7 +10,8 @@ Stability   : experimental
 module TypeChecker (
    tc,
    tcDecl,
-   tyEnv 
+   tyEnv,
+   expect
    ) where
 
 import Lang
@@ -18,7 +19,9 @@ import Global
 import MonadPCF
 import PPrint
 import Subst
+import Debug.Trace
 
+debug = flip trace
 
 -- | 'tc' chequea y devuelve el tipo de un término 
 -- Si el término no está bien tipado, lanza un error
@@ -29,14 +32,14 @@ tc :: MonadPCF m => Term         -- ^ término a chequear
 tc (V p (Bound _)) _ = failPosPCF p "typecheck: No deberia haber variables Bound"
 tc (V p (Free n)) bs = case lookup n bs of
                            Nothing -> failPosPCF p $ "Variable no declarada "++ppName n
-                           Just ty -> return ty 
+                           Just ty -> return ty
 tc (Const _ (CNat n)) _ = return NatTy
 tc (IfZ p c t t') bs = do
        tyc  <- tc c bs
        expect NatTy tyc c
        tyt  <- tc t bs
        tyt' <- tc t' bs
-       expect tyt tyt' t'
+       expect tyt tyt' t' `debug` "ifz"
 tc (Let p x ty v t) bs = do
     tyv <- tc v bs
     expect ty tyv v

@@ -118,21 +118,8 @@ elab' (BinaryOp p op a b)   = BinaryOp p op (elab' a) (elab' b)
 elab' (App p h a)           = App p (elab' h) (elab' a)
 elab' (Fix p f fty x xty t) = Fix p f fty x xty (closeN [f, x] (elab' t))
 elab' (IfZ p c t e)         = IfZ p (elab' c) (elab' t) (elab' e)
--- elab' (UnaryOp i o t)       = UnaryOp i o (elab' t) --ver
 elab' (Let p v ty e1 e2)    = Let p v ty (elab' e1) (close v (elab' e2)) 
 
-{-
-El original era equivalente a
-elab_decl :: Decl NTerm -> Decl Term
-elab_decl = fmap elab'
-
-fmap :: (a -> b) -> f a -> fb
-Es decir, en este caso sería (Decl NTerm -> Decl Term) -> Decl NTerm -> Decl Term
-
-Ahora desugarDec debería poder devolver: Nothing, Just Decl NTerm o Error
-Como tengo que seguir teniendo en cuenta los errores que pueden surgir en desugarDec,
-tengo que usar la MonadError
--}
 elabDecl :: MonadPCF m => SDecl STerm -> m (Maybe (Decl Term))
 elabDecl sd = do 
                 nd <- desugarDec sd
@@ -146,7 +133,7 @@ elabDeclModule [x] = do
                         dx <- elabDecl x
                         case dx of
                           Nothing -> failPCF "Error al armar modulo"
-                          Just d -> return [d]  --do --addDecl fmap elab' 
+                          Just d -> return [d]
 elabDeclModule (x:xs) = do
                           elabx <- elabDeclModule [x]
                           elabxs <- elabDeclModule xs

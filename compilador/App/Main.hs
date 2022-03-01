@@ -105,7 +105,7 @@ parseMode =
 -- | Realiza las operaciones necesarias de acuerdo al modo elegido
 go :: (Mode,[FilePath]) -> IO ()
 go (Interactive,files)        = runPCF (runInputT defaultSettings (repl files)) >> return ()
-go (Typecheck, files)         = undefined  -- TODO
+go (Typecheck, files)         = runPCF (typeCheckFiles files) >> return ()
 go (Bytecompile, files)       = runPCF (bytecompileFiles files) >> return ()
 go (Run,files)                = runPCF (runFiles files) >> return ()
 go (ClosureConversion, files) = runPCF (closureConvertFiles files) >> return ()
@@ -219,7 +219,7 @@ compileFiles (x:xs) = do
 
 compileFile ::  MonadPCF m => String -> m ()
 compileFile f = do 
-    decls <- fileToDecls f
+    decls <- fileToSDecls f
     case decls of
       Nothing -> printPCF "error"
       Just d  -> mapM_ evalDecl d
@@ -252,34 +252,14 @@ evalDecl decl = do
 -- | y guardando los archivos con el bytecode correspondiente
 bytecompileFiles :: MonadPCF m => [String] -> m ()
 bytecompileFiles [] = return ()
-bytecompileFiles (x:xs) = do
-                            btc <- bytecompileFile x
-                            printPCF ("Guardando "++x++"...")
-                            liftIO $ catch (bcWrite btc (x ++ ".byte"))
+bytecompileFiles (f:fs) = do
+                            btc <- handleFile True f >>= bytecompileModule
+                            printPCF ("Guardando "++f++"...")
+                            liftIO $ catch (bcWrite btc (f ++ ".byte"))
                                   (\e -> do let err = show (e :: IOException)
-                                            hPutStr stderr ("No se pudo crear el archivo " ++ x ++ ": " ++ err ++"\n")
+                                            hPutStr stderr ("No se pudo crear el archivo " ++ f ++ ": " ++ err ++"\n")
                                             return ())
-                            bytecompileFiles xs
-
--- | Toma un nombre de archivo, lo lee y retorna su bytecode
-bytecompileFile ::  MonadPCF m => String -> m Bytecode
-bytecompileFile f = do
-    decls <- fileToDecls f
-    case decls of
-      Nothing -> do 
-                    printPCF "error"
-                    return []
-      Just d -> do
-                  --printPCF "decls: \n"
-                  --printPCF $ show d
-                  ptm <- sModuleToModule d
-                  --printPCF "\nmodule: \n"
-                  --printPCF $ show ptm
-                  btc <- bytecompileModule ptm
-                  --printPCF "\nbytecode: \n"
-                  --printPCF $ show btc
-                  return btc
-
+                            bytecompileFiles fs
 -----------------------
 -- Run Bytecode
 -----------------------
@@ -295,7 +275,10 @@ runFile f = do
                (\e -> do let err = show (e :: IOException)
                          hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
                          return [])
-    runBC x
+    liftIO $ runPCF $ catchErrors $ runBC x
+    return ()
+    
+    
 
 -----------------------
 -- Closure Convert
@@ -303,32 +286,11 @@ runFile f = do
 
 -- | Toma una lista de nombres de archivos, los va leyendo
 -- | e "imprime" el resultado de la conversion de clausuras y el hoisting 
-closureConvertFiles :: MonadPCF m =>  [String] -> m ()--[[IrDecl]]
-closureConvertFiles xs = mapM_ closureConvertFile xs
+closureConvertFiles :: MonadPCF m =>  [String] -> m [[IrDecl]]
+closureConvertFiles xs = mapM closureConvertFile xs
 
--- | Toma un nombre de archivo, lo lee y retorna su conversion de clausuras
 closureConvertFile :: MonadPCF m => String -> m [IrDecl]
-closureConvertFile f = do
-    decls <- fileToDecls f
-    case decls of
-      Nothing -> do 
-                    printPCF "error"
-                    return []
-      Just d -> do
-                  printPCF "SDecls: \n"
-                  printPCF $ show d
-                  ptm <- sModuleToModule d
-                  printPCF "\nDecls: \n"
-                  printPCF $ show ptm
-                  mapM_ addDecl ptm
-                  printPCF "\nInlining: \n"
-                  optimized <- optimize ptm
-                  printPCF $ show optimized
-                  cc <- runCC optimized
-                  printPCF "\nClosureConversion: \n"
-                  printPCF $ show cc
-                  return cc
-                  --return []
+closureConvertFile f = handleFile True f >>= runCC
 
 -----------------------
 -- Generate LLVM
@@ -392,6 +354,10 @@ typeCheckPhrase x = do
          printPCF (ppTy ty)
          return ()  --TODO ver
 
+-- | Typechecking para archivos
+typeCheckFiles :: MonadPCF m => [String] -> m ()
+typeCheckFiles fs = mapM_ (handleFile False) fs >> printPCF (">> Typecheck realizado correctamente") --TODO devolver ok solo si no hubo otro error
+                
 -----------------------
 -- Funciones Auxiliares
 -----------------------
@@ -402,7 +368,8 @@ parseIO filename p x = case runP p x filename of
                           Left e  -> throwError (ParseErr e)
                           Right r -> return r
 
--- | Toma una lista de declaraciones con SS y devuelve un listado de declaraciones
+-- | Toma una lista de declaraciones con SS y devuelve un listado de declaraciones sin syntactic sugar,
+-- | luego de hacer el typechecking y de agregar las decls al entorno
 sModuleToModule :: MonadPCF m => [SDecl STerm] -> m [Decl Term] 
 sModuleToModule [] = failPCF "No se introdujo ningún archivo"
 sModuleToModule [x] = do dx <- handleDecl x
@@ -414,17 +381,18 @@ sModuleToModule (x:xs) = do dx  <- handleDecl x
 -- | Manejo de declaraciones
 handleDecl ::  MonadPCF m => SDecl STerm -> m (Maybe (Decl Term))
 handleDecl decl = do
-                  nd <- desugarDec decl
-                  case nd of
-                    Just (Decl p x t) -> do
-                      let tt = elab' t
-                      tcDecl (Decl p x tt)
-                      return $ Just (Decl p x tt)
-                    _ -> return Nothing --Nothing es una declaración de sinonimo de tipos
+                    nd <- desugarDec decl
+                    case nd of
+                      Just (Decl p x t) -> do
+                        let tt = elab' t
+                        let desugaredDecl = (Decl p x tt)
+                        tcDecl desugaredDecl 
+                        return $ Just desugaredDecl
+                      _ -> return Nothing --Nothing es una declaración de sinonimo de tipos
 
--- | Toma un archivo y recupera una lista de declaraciones
-fileToDecls :: MonadPCF m => String -> m (Maybe [SDecl STerm])
-fileToDecls f = do
+-- | Toma un archivo y recupera una lista de declaraciones con syntactic sugar
+fileToSDecls :: MonadPCF m => String -> m (Maybe [SDecl STerm])
+fileToSDecls f = do
                   printPCF ("Abriendo "++f++"...")
                   let filename = reverse(dropWhile isSpace (reverse f))
                   x <- liftIO $ catch (readFile filename) 
@@ -433,3 +401,18 @@ fileToDecls f = do
                                       return "")
                   decls <- catchErrors (parseIO filename program x)
                   return decls
+
+-- | Toma el archivo y deja las declaraciones listas para el tipo de compilacion elegido
+handleFile :: MonadPCF m => Bool -> String -> m [Decl Term]
+handleFile opt f = do 
+    sdecls <- fileToSDecls f
+    printPCF (show sdecls)
+    case sdecls of
+      Nothing -> do 
+                    printPCF "error"
+                    return []
+      Just d -> do
+                  decls <- sModuleToModule d
+                  case opt of 
+                    True  -> mapM_ addDecl decls >> optimize decls >>= return -- Agrego las declaraciones para usarlas en el optimizador
+                    _ -> return decls

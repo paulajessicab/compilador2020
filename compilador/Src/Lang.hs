@@ -55,7 +55,7 @@ data STm info var =
   | SLetRec info Name [(Name, STy)] STy (STm info var) (STm info var)
   | SLam info [(Name, STy)] (STm info var)
   | SApp info (STm info var) (STm info var)
-  | SUnaryOp info UnaryOp (Maybe (STm info var)) -- El parseo de un unaryOp aplicado a un valor se hace con una aplicación
+  | SUnaryOp info UnaryOp (Maybe (STm info var))
   | SBinaryOp info BinaryOp  -- El parseo de un binaryOp aplicado a un valor se hace con una aplicación
   | SFix info [(Name, STy)] (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)

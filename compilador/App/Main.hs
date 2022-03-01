@@ -104,20 +104,13 @@ parseMode =
 
 -- | Realiza las operaciones necesarias de acuerdo al modo elegido
 go :: (Mode,[FilePath]) -> IO ()
-go (Interactive,files) = do
-                          runPCF (runInputT defaultSettings (repl files))
-                          return ()
-go (Typecheck, files) = undefined
-go (Bytecompile, files) = do runPCF (bytecompileFiles files)
-                             return ()
-go (Run,files) = do runPCF (runFiles files)
-                    return ()
-go (ClosureConversion, files) = do x <- runPCF (closureConvertFiles files)
-                                   return  ()
-go (GenerateLLVM, files) = do x <- runPCF (genLLVMfromFiles files)
-                              return  ()
-go (RunLLVM, files) = do x <- runPCF (runLLVMfromFiles files)
-                         return  ()
+go (Interactive,files)        = runPCF (runInputT defaultSettings (repl files)) >> return ()
+go (Typecheck, files)         = undefined  -- TODO
+go (Bytecompile, files)       = runPCF (bytecompileFiles files) >> return ()
+go (Run,files)                = runPCF (runFiles files) >> return ()
+go (ClosureConversion, files) = runPCF (closureConvertFiles files) >> return ()
+go (GenerateLLVM, files)      = runPCF (genLLVMfromFiles files) >> return ()
+go (RunLLVM, files)           = runPCF (runLLVMfromFiles files) >> return ()
 
 -----------------------
 -- Modo interactivo
@@ -177,18 +170,18 @@ handleCommand ::  MonadPCF m => Command  -> m Bool
 handleCommand cmd = do
    s@GlEnv {..} <- get
    case cmd of
-       Quit   ->  return False
-       Noop   ->  return True
-       Help   ->  printPCF (helpTxt commands) >> return True
-       Browse ->  do  printPCF (unlines [ name | name <- reverse (nub (map declName glb)) ])
-                      return True
-       Compile c ->
-                  do  case c of
-                          CompileInteractive e -> compilePhrase e
-                          CompileFile f        -> put (s {lfile=f}) >> compileFile f
-                      return True
-       Main.Print e   -> printPhrase e >> return True
-       Type e    -> typeCheckPhrase e >> return True
+       Quit         ->  return False
+       Noop         ->  return True
+       Help         ->  printPCF (helpTxt commands) >> return True
+       Browse       ->  do printPCF (unlines [ name | name <- reverse (nub (map declName glb)) ])
+                           return True
+       Compile c    ->  do
+                            case c of
+                              CompileInteractive e -> compilePhrase e
+                              CompileFile f        -> put (s {lfile=f}) >> compileFile f
+                            return True
+       Main.Print e -> printPhrase e >> return True
+       Type e       -> typeCheckPhrase e >> return True
 
 -- | Mensaje de ayuda del modo interactivo
 helpTxt :: [InteractiveCommand] -> String
@@ -211,12 +204,8 @@ compilePhrase x =
   do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of 
-      Left d  -> do 
-                    evalDecl d
-                    return ()
-      Right t -> do
-                    handleTerm t --Todo acomodar elab y elab'
-                    return ()
+      Left d  -> evalDecl d >> return ()
+      Right t -> handleTerm t >> return () --Todo acomodar elab y elab'
 
 -- | Compilacion Eval para una lista de archivos
 -- Toma una lista de nombres de archivos, cambia a modo no interactivo,
@@ -351,9 +340,8 @@ genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
 genLLVMfromFile :: MonadPCF m => String -> m Module
 genLLVMfromFile f = do 
                       cc <- closureConvertFile f
-                      --let opt = constantFolding cc
                       let llvm = codegen (runCanon cc)
-                      return llvm --`debug` (L.unpack (ppllvm llvm))
+                      return llvm
                       
 -----------------------
 -- Run LLVM
@@ -398,17 +386,11 @@ printPhrase x =
 typeCheckPhrase :: MonadPCF m => String -> m ()
 typeCheckPhrase x = do
          t <- parseIO "<interactive>" tm x
-         --printPCF "STerm:"
-         --printPCF (show t)
-         tt <- elab t 
-         --printPCF "Term:"
-         --printPCF (show tt)
+         tt <- elab t
          s <- get
-         --ty <- tc tt (tyEnv s)
-         tc tt (tyEnv s)
-         return ()
-         --printPCF (ppTy ty)
-
+         ty <- tc tt (tyEnv s)
+         printPCF (ppTy ty)
+         return ()  --TODO ver
 
 -----------------------
 -- Funciones Auxiliares

@@ -107,7 +107,9 @@ unaryOpName =
 
 unaryOp:: P STerm
 unaryOp = do i <- getPos
-             SUnaryOp i <$> unaryOpName
+             op <- unaryOpName
+             arg <- optionMaybe atom
+             return $ SUnaryOp i op arg
 
 binOpName :: P BinaryOp
 binOpName =
@@ -118,6 +120,14 @@ binOp :: P STerm
 binOp = do
           i <- getPos
           SBinaryOp i <$> binOpName
+
+-- unopApp :: P STerm
+-- unopApp = do i <- getPos
+--              f <- unaryOp
+--              args <- optionMayby (many1 atom)
+--              case args of
+--                   Nothing -> return $ SApp i f Nothing
+--                   Just as -> return $ foldl (SApp i) f (fmap Just as)
 
 -- No necesito una regla para el UnaryOp aplicado
 -- porque es redundante con la de aplicación (el no aplicado es un atom)

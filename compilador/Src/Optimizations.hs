@@ -75,8 +75,6 @@ inlineT names (App i a b) = do ai <- inlineT names a
 inlineT names (BinaryOp i op a b) = do ai <- inlineT names a
                                        bi <- inlineT names b
                                        return $ BinaryOp i op ai bi
-inlineT names (UnaryOp i op t) = do ti <- inlineT names t
-                                    return $ UnaryOp i op ti
 inlineT names (Fix i n ty n2 ty2 t) = do ti <- inlineT names t -- Ver si no hay que hacer un tratamiento especial
                                          return $ Fix i n ty n2 ty2 ti
 inlineT names (IfZ i c a b) = do  ci <- inlineT names c
@@ -136,7 +134,6 @@ countRefsTerm justFnCalls refs (Lam i v tv t) = countRefsTerm justFnCalls refs t
 countRefsTerm justFnCalls refs (Let i n ty a b) = countRefsTerm justFnCalls (countRefsTerm justFnCalls refs a) b
 countRefsTerm justFnCalls refs (App i a b) = countRefsTerm justFnCalls (countRefsTerm justFnCalls refs a) b
 countRefsTerm justFnCalls refs (BinaryOp _ _ a b) = countRefsTerm justFnCalls (countRefsTerm justFnCalls refs a) b
-countRefsTerm justFnCalls refs (UnaryOp _ _ a) = countRefsTerm justFnCalls refs a
 countRefsTerm justFnCalls refs (Fix _ _ _ _ _ t) = countRefsTerm justFnCalls refs t
 countRefsTerm justFnCalls refs (IfZ _ c a b) =  let  cc = countRefsTerm justFnCalls refs c
                                                      ca = countRefsTerm justFnCalls cc a

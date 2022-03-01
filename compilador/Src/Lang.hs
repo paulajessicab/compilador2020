@@ -55,7 +55,7 @@ data STm info var =
   | SLetRec info Name [(Name, STy)] STy (STm info var) (STm info var)
   | SLam info [(Name, STy)] (STm info var)
   | SApp info (STm info var) (STm info var)
-  | SUnaryOp info UnaryOp -- El parseo de un unaryOp aplicado a un valor se hace con una aplicación
+  | SUnaryOp info UnaryOp (Maybe (STm info var))-- El parseo de un unaryOp aplicado a un valor se hace con una aplicación
   | SBinaryOp info BinaryOp  -- El parseo de un binaryOp aplicado a un valor se hace con una aplicación
   | SFix info [(Name, STy)] (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)
@@ -85,7 +85,7 @@ data Tm info var =
   | Let info Name Ty (Tm info var) (Tm info var) -- implementacion let-binding interna
   | App info (Tm info var) (Tm info var)
   | BinaryOp info BinaryOp (Tm info var) (Tm info var)
-  | UnaryOp info UnaryOp (Tm info var) -- VER Esta para el print de llvm
+  -- | UnaryOp info UnaryOp (Tm info var) -- VER Esta para el print de llvm
   | Fix info Name Ty Name Ty (Tm info var)
   | IfZ info (Tm info var) (Tm info var) (Tm info var)
   deriving (Show, Functor)
@@ -106,7 +106,7 @@ getInfo (Const i _) = i
 getInfo (Lam i _ _ _) = i
 getInfo (App i _ _ ) = i
 getInfo (BinaryOp i _ _ _) = i
-getInfo (UnaryOp i _ _ ) = i
+-- getInfo (UnaryOp i _ _ ) = i
 getInfo (Fix i _ _ _ _ _) = i
 getInfo (IfZ i _ _ _) = i
 getInfo (Let i _ _ _ _) = i
@@ -118,7 +118,7 @@ freeVars (V _ _)            = []
 freeVars (Lam _ _ _ t)      = freeVars t
 freeVars (App _ l r)        = freeVars l ++ freeVars r
 freeVars (BinaryOp _ _ l r) = freeVars l ++ freeVars r
-freeVars (UnaryOp _ _ t)    = freeVars t
+-- freeVars (UnaryOp _ _ t)    = freeVars t
 freeVars (Fix _ _ _ _ _ t)  = freeVars t
 freeVars (IfZ _ c t e)      = freeVars c ++ freeVars t ++ freeVars e
 freeVars (Const _ _)        = []

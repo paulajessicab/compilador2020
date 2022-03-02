@@ -29,7 +29,7 @@ import Global ( GlEnv(..) )
 import Elab ( elab, desugar, desugarDec, elab',desugarDec )
 import Eval ( eval )
 import TypeChecker ( tc, tcDecl )
-import PPrint ( ppTy, pp, prettifyModule )
+import PPrint ( ppTy, prettifyModule )
 import MonadPCF
 import Common ()
 import ClosureConversion
@@ -44,8 +44,7 @@ import System.Process (system)
 import Data.Maybe(maybeToList)
 import Optimizations (optimize)
 import LLVM.Pretty (ppllvm)
-
---debug = flip trace
+import System.IO (hPutStrLn)
 
 data Mode = Interactive
           | Typecheck
@@ -53,6 +52,7 @@ data Mode = Interactive
           | Run
           | ClosureConversion
           | GenerateLLVM
+          | PrettyPrint
           | RunLLVM
 
 data Command = Compile CompileForm
@@ -99,6 +99,7 @@ parseMode =
   <|> flag' ClosureConversion (long "cc" <> help "Imprimir resultado luego de cc y hoisting")
   <|> flag' GenerateLLVM (long "llvm" <> help "Generar código LLVM")
   <|> flag' RunLLVM (long "runllvm" <> help "Genera y ejecuta código LLVM")
+  <|> flag' PrettyPrint (long "prettyprint" <> short 'p' <> help "Imprime el codigo fuente y su optimizacion")
   <|> flag Interactive Interactive ( long "interactive" <> short 'i'
                                                         <> help "Ejecutar en forma interactiva" )
 
@@ -110,6 +111,7 @@ go (Bytecompile, files)       = runPCF (bytecompileFiles files) >> return ()
 go (Run,files)                = runPCF (runFiles files) >> return ()
 go (ClosureConversion, files) = runPCF (closureConvertFiles files) >> return ()
 go (GenerateLLVM, files)      = runPCF (genLLVMfromFiles files) >> return ()
+go (PrettyPrint, files)       = runPCF (printFiles files) >> return ()
 go (RunLLVM, files)           = runPCF (runLLVMfromFiles files) >> return ()
 
 -----------------------
@@ -253,7 +255,7 @@ evalDecl decl = do
 bytecompileFiles :: MonadPCF m => [String] -> m ()
 bytecompileFiles [] = return ()
 bytecompileFiles (f:fs) = do
-                            btc <- handleFile True f >>= bytecompileModule
+                            btc <- handleFile True False f >>= bytecompileModule
                             printPCF ("Guardando "++f++"... \n")
                             liftIO $ catch (bcWrite btc (f ++ ".byte"))
                                   (\e -> do let err = show (e :: IOException)
@@ -275,7 +277,7 @@ runFile f = do
                (\e -> do let err = show (e :: IOException)
                          hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
                          return [])
-    liftIO $  runPCF $ catchErrors $ runBC x
+    liftIO $ runPCF $ catchErrors $ runBC x
     return ()
     
     
@@ -290,7 +292,7 @@ closureConvertFiles :: MonadPCF m =>  [String] -> m [[IrDecl]]
 closureConvertFiles xs = mapM closureConvertFile xs
 
 closureConvertFile :: MonadPCF m => String -> m [IrDecl]
-closureConvertFile f = handleFile True f >>= runCC
+closureConvertFile f = handleFile True False f >>= runCC
 
 -----------------------
 -- Generate LLVM
@@ -325,7 +327,7 @@ runLLVMfromFile filename = do llvm <- genLLVMfromFile filename
 -----------------------
 
 -- | Hace el pretty print del termino con SS, terminos con nombres y terminos con indices de Bruijin --TODO usar pretty printer
-printPhrase   :: MonadPCF m => String -> m ()
+printPhrase :: MonadPCF m => String -> m ()
 printPhrase x =
   do
     sterm <- parseIO "<interactive>" tm x
@@ -340,6 +342,9 @@ printPhrase x =
            _       -> return ex  
     printPCF "\nTerm:"
     printPCF (show t)
+
+printFiles :: MonadPCF m => [String] -> m ()
+printFiles = mapM_ (handleFile True True)
 
 -----------------------
 -- Type Checker
@@ -356,8 +361,11 @@ typeCheckPhrase x = do
 
 -- | Typechecking para archivos
 typeCheckFiles :: MonadPCF m => [String] -> m ()
-typeCheckFiles fs = mapM_ (handleFile False) fs >> printPCF (">> Typecheck realizado correctamente") --TODO devolver ok solo si no hubo otro error
-                
+typeCheckFiles fs = do e <- catchErrors $ mapM (handleFile False False) fs
+                       case e of
+                          Nothing -> liftIO $ hPutStrLn stderr ">> Error de tipado..."
+                          _       -> printPCF (">> Typecheck realizado correctamente")
+
 -----------------------
 -- Funciones Auxiliares
 -----------------------
@@ -403,8 +411,8 @@ fileToSDecls f = do
                   return decls
 
 -- | Toma el archivo y deja las declaraciones listas para el tipo de compilacion elegido
-handleFile :: MonadPCF m => Bool -> String -> m [Decl Term]
-handleFile opt f = do 
+handleFile :: MonadPCF m => Bool -> Bool -> String -> m [Decl Term]
+handleFile opt pp f = do 
     sdecls <- fileToSDecls f
     case sdecls of
       Nothing -> do 
@@ -412,7 +420,17 @@ handleFile opt f = do
                     return []
       Just d -> do
                   decls <- sModuleToModule d
-                  printPCF $ prettifyModule decls
+                  condPrint pp "> Declaraciones: \n"
+                  condPrint pp $ prettifyModule decls
                   case opt of  -- Agrego las declaraciones para usarlas en el optimizador
-                    True  -> mapM_ addDecl decls >> optimize decls >>= return
+                    True  -> do 
+                              mapM_ addDecl decls
+                              optdecl <- optimize decls
+                              condPrint pp " > Resultado de la optimizacion: \n"
+                              condPrint pp $ prettifyModule optdecl
+                              return optdecl
                     _ -> return decls
+
+condPrint :: MonadPCF m => Bool -> String -> m ()                  
+condPrint True s = printPCF $ s
+condPrint False _ = return ()

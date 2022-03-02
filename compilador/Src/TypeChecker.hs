@@ -39,7 +39,7 @@ tc (IfZ p c t t') bs = do
        expect NatTy tyc c
        tyt  <- tc t bs
        tyt' <- tc t' bs
-       expect tyt tyt' t' `debug` "ifz"
+       expect tyt tyt' t'
 tc (Let p x ty v t) bs = do
     tyv <- tc v bs
     expect ty tyv v

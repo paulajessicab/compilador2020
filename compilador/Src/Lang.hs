@@ -72,7 +72,12 @@ data Ty =
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a =
     Decl { declPos :: Pos, declName :: Name, declBody :: a }
-  deriving (Show,Functor)
+  deriving (Show, Functor)
+
+--instance (Show a) => Show (Decl a) where
+--  show (Decl p n t) = "Let " ++ show n ++ " = " ++ show t ++ "\n"
+
+
 
 -- | AST de los términos. 
 --   - info es información extra que puede llevar cada nodo. 

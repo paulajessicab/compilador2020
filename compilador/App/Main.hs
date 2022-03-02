@@ -29,7 +29,7 @@ import Global ( GlEnv(..) )
 import Elab ( elab, desugar, desugarDec, elab',desugarDec )
 import Eval ( eval )
 import TypeChecker ( tc, tcDecl )
-import PPrint ( ppTy )
+import PPrint ( ppTy, pp, prettifyModule )
 import MonadPCF
 import Common ()
 import ClosureConversion
@@ -254,7 +254,7 @@ bytecompileFiles :: MonadPCF m => [String] -> m ()
 bytecompileFiles [] = return ()
 bytecompileFiles (f:fs) = do
                             btc <- handleFile True f >>= bytecompileModule
-                            printPCF ("Guardando "++f++"...")
+                            printPCF ("Guardando "++f++"... \n")
                             liftIO $ catch (bcWrite btc (f ++ ".byte"))
                                   (\e -> do let err = show (e :: IOException)
                                             hPutStr stderr ("No se pudo crear el archivo " ++ f ++ ": " ++ err ++"\n")
@@ -269,13 +269,13 @@ runFiles = mapM_ runFile
 
 runFile :: MonadPCF m => String -> m ()
 runFile f = do
-    printPCF ("Ejecutando "++f++"...")
+    printPCF ("Ejecutando "++f++"... \n")
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (bcRead filename)
                (\e -> do let err = show (e :: IOException)
                          hPutStr stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err ++"\n")
                          return [])
-    liftIO $ runPCF $ catchErrors $ runBC x
+    liftIO $  runPCF $ catchErrors $ runBC x
     return ()
     
     
@@ -335,7 +335,7 @@ printPhrase x =
     printPCF "\nNTerm:"
     printPCF (show nterm)
     let ex = elab' nterm
-    t  <- case nterm of 
+    t  <- case nterm of
            (V p f) -> maybe ex id <$> lookupDecl f
            _       -> return ex  
     printPCF "\nTerm:"
@@ -393,7 +393,7 @@ handleDecl decl = do
 -- | Toma un archivo y recupera una lista de declaraciones con syntactic sugar
 fileToSDecls :: MonadPCF m => String -> m (Maybe [SDecl STerm])
 fileToSDecls f = do
-                  printPCF ("Abriendo "++f++"...")
+                  printPCF ("Abriendo "++f++"... \n")
                   let filename = reverse(dropWhile isSpace (reverse f))
                   x <- liftIO $ catch (readFile filename) 
                             (\e -> do let err = show (e :: IOException) 
@@ -406,13 +406,13 @@ fileToSDecls f = do
 handleFile :: MonadPCF m => Bool -> String -> m [Decl Term]
 handleFile opt f = do 
     sdecls <- fileToSDecls f
-    printPCF (show sdecls)
     case sdecls of
       Nothing -> do 
                     printPCF "error"
                     return []
       Just d -> do
                   decls <- sModuleToModule d
-                  case opt of 
-                    True  -> mapM_ addDecl decls >> optimize decls >>= return -- Agrego las declaraciones para usarlas en el optimizador
+                  printPCF $ prettifyModule decls
+                  case opt of  -- Agrego las declaraciones para usarlas en el optimizador
+                    True  -> mapM_ addDecl decls >> optimize decls >>= return
                     _ -> return decls

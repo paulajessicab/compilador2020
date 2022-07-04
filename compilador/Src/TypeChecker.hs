@@ -10,8 +10,7 @@ Stability   : experimental
 module TypeChecker (
    tc,
    tcDecl,
-   tyEnv,
-   expect
+   tyEnv
    ) where
 
 import Lang
@@ -24,8 +23,8 @@ import Debug.Trace
 debug = flip trace
 
 -- | 'tc' chequea y devuelve el tipo de un término 
--- Si el término no está bien tipado, lanza un error
--- usando la interfaz de las mónadas @MonadPCF@.
+-- | Si el término no está bien tipado, lanza un error
+-- | usando la interfaz de las mónadas @MonadPCF@.
 tc :: MonadPCF m => Term         -- ^ término a chequear
                  -> [(Name,Ty)]  -- ^ entorno de tipado
                  -> m Ty         -- ^ tipo del término
@@ -77,7 +76,7 @@ typeError :: MonadPCF m => Term   -- ^ término que se está chequeando
 typeError t s = failPosPCF (getInfo t) $ "Error de tipo en "++pp t++"\n"++s
  
 -- | 'expect' chequea que el tipo esperado sea igual al que se obtuvo
--- y lanza un error si no lo es.
+-- | y lanza un error si no lo es.
 expect :: MonadPCF m => Ty    -- ^ tipo esperado
                      -> Ty    -- ^ tipo que se obtuvo
                      -> Term  -- ^ término que se está chequeando
@@ -94,7 +93,7 @@ domCod t (FunTy d c) = return (d, c)
 domCod t ty = typeError t $ "Se esperaba un tipo función, pero se obtuvo: " ++ ppTy ty
 
 -- | 'tcDecl' chequea el tipo de una declaración
--- y la agrega al entorno de tipado de declaraciones globales
+-- | y la agrega al entorno de tipado de declaraciones globales
 tcDecl :: MonadPCF m  => Decl Term -> m ()
 tcDecl (Decl p n t) = do
     --chequear si el nombre ya está declarado

@@ -39,18 +39,18 @@ type StackBVM = [Val]
 data Val = I Int | Fun EnvBVM Bytecode | RA EnvBVM Bytecode deriving Show
 
 getValEnv :: MonadPCF m => Val -> m EnvBVM
-getValEnv (I n) = failPCF "error"
+getValEnv (I n)     = failPCF "error"
 getValEnv (Fun e _) = return e
-getValEnv (RA e _) = return e
+getValEnv (RA e _)  = return e
 
 getValBC :: MonadPCF m => Val -> m Bytecode
-getValBC (I n) = failPCF "error"
-getValBC (Fun _ c) = return c
-getValBC (RA _ c) = return c
+getValBC (I n)      = failPCF "error"
+getValBC (Fun _ c)  = return c
+getValBC (RA _ c)   = return c
 
 getValInt :: MonadPCF m => Val -> m Int
 getValInt (I n) = return n
-getValInt _ = failPCF "error"
+getValInt _     = failPCF "error"
 
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
@@ -81,8 +81,8 @@ pattern CONST    = 2
 pattern ACCESS   = 3
 pattern FUNCTION = 4
 pattern CALL     = 5
-pattern SUCC     = 6 -- Ya no es necesario
-pattern PRED     = 7 -- Ya no es necesario
+-- pattern SUCC     = 6
+-- pattern PRED     = 7
 pattern IFZ      = 8
 pattern FIX      = 9
 pattern STOP     = 10
@@ -101,12 +101,9 @@ bytecode de e, para poder saltar.
 [Bytecode Function, length(e), bytecode de e]
 -}
 
-
-
 bc :: MonadPCF m => Term -> m Bytecode
 bc (Const _ (CNat n)) = return [CONST,n]
--- Escribo la suma y la resta con notacion polaca inversa
-bc (BinaryOp _ op a b) = do 
+bc (BinaryOp _ op a b) = do -- Escribo la suma y la resta con notacion polaca inversa
                             bca <- bc a
                             bcb <- bc b
                             case op of
@@ -136,7 +133,7 @@ bc (Lam _ _ _ t)      = do
 bc (Fix _ _ _ _ _ e)  = do 
                         bce <- bc e
                         let bce' = bce ++ [RETURN]
-                        return $ [FUNCTION, length bce'] ++ bce' ++ [FIX] -- ver si va +1 en el largo
+                        return $ [FUNCTION, length bce'] ++ bce' ++ [FIX]
 bc (IfZ _ c t0 t1)    = do --Primero introduzco el nro de la condición, luego las longitudes del bc de los terminos para poder saltar y, por último, los términos
                           bcc <- bc c
                           bct0 <- bc t0
@@ -162,7 +159,7 @@ tailbc t                = do
                           return $ bct ++ [RETURN]
                            
 
-
+-- | Traduccion a bytecode del modulo entero, agregando la impresion del ultimo valor y la instruccion de stop 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode
 bytecompileModule m = do minn <- bcModuleInner m
                          ctp <- bc minn
@@ -174,7 +171,7 @@ bcModuleInner [Decl p v e] = return $ Let p v NatTy e (close v e)
 bcModuleInner ((Decl p v e):xs) = do mxs <- bcModuleInner xs
                                      return $ Let p v NatTy e (close v mxs)
                                      
-
+                                     
 -- | Toma un bytecode, lo codifica y lo escribe un archivo 
 bcWrite :: Bytecode -> FilePath -> IO ()
 bcWrite bs filename = BS.writeFile filename (encode $ BC $ fromIntegral <$> bs)
@@ -192,7 +189,7 @@ runBC c = runBC' c [] []
 
 runBC' :: MonadPCF m => Bytecode -> EnvBVM -> StackBVM -> m ()
 runBC' (CONST : n : cs) e s = do runBC' cs e ((I n):s)
-runBC' (SUCC : cs) e (n:s) = do
+{-runBC' (SUCC : cs) e (n:s) = do
                                 case n of 
                                   I m -> do runBC' cs e ((I (m+1)):s)
                                   _   -> failPCF "Error al ejecutar el SUCC: el argumento debe ser de tipo Nat."
@@ -200,7 +197,7 @@ runBC' (PRED : cs) e (n:s) = do
                                 case n of 
                                   I 0 -> failPCF "Error al ejecutar PRED: no se puede obtener el predecesor de 0."
                                   I m -> do runBC' cs e ((I (m-1)):s)
-                                  _   -> failPCF "Error al ejecutar PRED: el argumento debe ser de tipo Nat."
+                                  _   -> failPCF "Error al ejecutar PRED: el argumento debe ser de tipo Nat."-}
 -- La suma y la resta estan en notacion polaca inversa
 -- Tomo los dos ultimos elementos del stack, los saca, los suma/resta
 -- y pushea el resultado. Tener en cuenta para la resta que se sacan al reves

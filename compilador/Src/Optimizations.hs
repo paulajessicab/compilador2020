@@ -28,16 +28,17 @@ optimizationLimit = 10
 optimize :: MonadPCF m => [Decl Term] -> m [Decl Term] 
 optimize decls = optimize' optimizationLimit decls
 
+-- | 
 optimize' :: MonadPCF m => Int -> [Decl Term] -> m [Decl Term]
 optimize' 0 decls = return decls
 optimize' 1 decls = inline decls >>= deadCodeElimination
-optimize' n decls = optimize' 1 decls >>= optimize' (n-1)
+optimize' n decls = optimize' 1 decls >>= optimize' (n-1) `debug` (show decls)
 
 
 -- | Inline Optimization
 -- | 
 inline :: MonadPCF m => [Decl Term] -> m [Decl Term]
-inline decls = mapM (inlineDecl names) decls --inlineN names decls
+inline decls = mapM (inlineDecl names) decls `debug` (show (countFunctionRefs decls))
                where names = Map.filter (== 1) $ countFunctionRefs decls
 
 inlineDecl :: MonadPCF m => Map Name Int -> Decl Term -> m (Decl Term)
@@ -55,12 +56,12 @@ inlineT names fv@(V _ (Free n)) = case Data.Map.lookup n names of
                                                         Nothing -> failPCF "No encontrado"
                                       Nothing -> do d <- lookupDecl n 
                                                     case d of 
-                                                      Just (Const i (CNat c)) -> return (Const i (CNat c))
+                                                      Just (Const i (CNat c)) -> return (Const i (CNat c)) -- Constant propagation
                                                       Just t -> return fv
                                                       Nothing -> failPCF "No encontrado"
 inlineT names v@(V _ (Bound _)) = return v
 inlineT names c@(Const _ _) = return c
-inlineT names (App i fn@(Lam _ x tx t) b) = do case b of -- Todo acomodar esto, tengo que reemplazar el bound 0 por la variable?
+inlineT names (App i fn@(Lam _ x tx t) b) = do case b of
                                                   (Const _ _) -> return $ subst b t
                                                   (V _ _) -> return $ subst b t
                                                   _ -> return $ Let i "__opt_dummy_name" tx b t
@@ -72,26 +73,21 @@ inlineT names (Let i n ty a b) = do ai <- inlineT names a
 inlineT names (App i a b) = do ai <- inlineT names a
                                bi <- inlineT names b
                                return (App i ai bi)
-inlineT names (BinaryOp i op a b) = do ai <- inlineT names a
-                                       bi <- inlineT names b
-                                       return $ BinaryOp i op ai bi
+inlineT names (BinaryOp i op a b) = do  case (op, a, b) of
+                                          -- Constant folding
+                                          (Add, Const _ (CNat a'), Const _ (CNat b')) -> return $ Const i (CNat (a' + b'))
+                                          (Sub, Const _ (CNat a'), Const _ (CNat b')) -> if b' > a'
+                                                                                         then failPCF "No se admiten numeros negativos"
+                                                                                         else return $ Const i (CNat (a' - b'))
+                                          _ -> do   ai <- inlineT names a
+                                                    bi <- inlineT names b
+                                                    return $ BinaryOp i op ai bi
 inlineT names (Fix i n ty n2 ty2 t) = do ti <- inlineT names t -- Ver si no hay que hacer un tratamiento especial
                                          return $ Fix i n ty n2 ty2 ti
 inlineT names (IfZ i c a b) = do  ci <- inlineT names c
                                   ai <- inlineT names a
                                   bi <- inlineT names b
                                   return $ IfZ i ci ai bi
-
--- | Obtiene nombres de variables frescas - Se podría mejorar (ver si hay que cortar en algun nro)
---fresh :: MonadPCF m => m Name
---fresh = fresh' 0
---
---fresh' :: MonadPCF m => Int -> m Name
---fresh' n    = do d <- lookupDecl name
---                 case d of
---                    Just _  -> fresh' (n+1)
---                    Nothing -> return name
---                 where name = "__opt" ++ (show n)
 
 -- | Dead code elimination 
 deadCodeElimination :: MonadPCF m => [Decl Term] ->  m [Decl Term]

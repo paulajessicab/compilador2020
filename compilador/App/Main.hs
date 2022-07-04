@@ -255,7 +255,7 @@ evalDecl decl = do
 bytecompileFiles :: MonadPCF m => [String] -> m ()
 bytecompileFiles [] = return ()
 bytecompileFiles (f:fs) = do
-                            btc <- handleFile True False f >>= bytecompileModule
+                            btc <- handleFile True True f >>= bytecompileModule
                             printPCF ("Guardando "++f++"... \n")
                             liftIO $ catch (bcWrite btc (f ++ ".byte"))
                                   (\e -> do let err = show (e :: IOException)

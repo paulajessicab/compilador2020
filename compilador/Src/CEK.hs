@@ -38,10 +38,10 @@ data Frame  = KArg Env Term
             | KSucc 
             | KPred
             | KLet Env Term
-            | KAddR Env Term--ver
-            | KAddL Env Int--ver
-            | KSubR Env Term--ver
-            | KSubL Env Int--ver
+            | KAddR Env Term
+            | KAddL Env Int
+            | KSubR Env Term
+            | KSubL Env Int
 
 type Kont = [Frame]
 
@@ -75,14 +75,14 @@ destroy (Cons n) (KPred:k) = destroy (Cons (n-1)) k
 destroy (Cons n) (KSucc:k) = destroy (Cons (n+1)) k
 destroy (Cons 0) ((KIfZ env t _):k) = search t env k
 destroy (Cons _) ((KIfZ env _ e):k) = search e env k
-destroy (Cons m) ((KAddR env n):k) = search n env ((KAddL env m) : k)-- ver
-destroy (Cons m) ((KSubR env n):k) = search n env ((KSubL env m) : k) --ver
-destroy (Cons n) ((KAddL env m):k) = destroy (Cons (m+n)) k-- ver
-destroy (Cons n) ((KSubL env m):k) = destroy (Cons (m-n)) k-- ver
+destroy (Cons m) ((KAddR env n):k) = search n env ((KAddL env m) : k)
+destroy (Cons m) ((KSubR env n):k) = search n env ((KSubL env m) : k)
+destroy (Cons n) ((KAddL env m):k) = destroy (Cons (m+n)) k
+destroy (Cons n) ((KSubL env m):k) = destroy (Cons (m-n)) k
 destroy pp@(VClos c) ((KArg env t):k) = search t env ((KClos c):k)
 destroy v (KClos (ClosFun env _ t):k) = search t (v:env) k
 destroy v (KClos(ClosFix env f fty x xty t):k) = search t (v:VClos (ClosFix env f fty x xty t):env) k
-destroy v ((KLet env t) : k) = search t (v:env) k --Ver
+destroy v ((KLet env t) : k) = search t (v:env) k
 
 -- | Evaluación de un término usando la máquina CEK
 evalCEK :: MonadPCF m => Term -> m Val

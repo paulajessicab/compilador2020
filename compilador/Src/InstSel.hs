@@ -160,21 +160,6 @@ cgExpr (BinOp op v1 v2) = do
                               Lang.Sub -> do tell [r := Sub False False (LocalReference integer vf1) (LocalReference integer vf2) []]
                             return (IntToPtr (LocalReference integer r) ptr [])
 
-{-cgExpr (BinOp Lang.Prod v1 v2) = do
-  v1 <- cgV v1
-  v2 <- cgV v2
-  vf1 <- freshName
-  vf2 <- freshName
-  r <- freshName
-  tell [vf1 := PtrToInt v1 integer []]
-  tell [vf2 := PtrToInt v2 integer []]
-  tell [r := Mul False False
-               (LocalReference integer vf1)
-               (LocalReference integer vf2)
-               []]
-  return (IntToPtr (LocalReference integer r) ptr [])
--}
-
 cgExpr (UnOp Lang.Succ v) = do
   cgExpr (BinOp Lang.Add v (C 1)) -- trucho
 

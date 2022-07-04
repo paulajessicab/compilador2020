@@ -138,7 +138,7 @@ t2doc at (BinaryOp _ op a b) = do
           parenIf at $
           binop2unopdoc op <+> t2doc True a
     _ -> parenIf at $
-         t2doc False a <+> binary2doc op <+> t2doc False b --ver los parents
+         t2doc False a <+> binary2doc op <+> t2doc False b
 
 t2doc at (Let _ n tx x t) = 
   parenIf at $

@@ -21,7 +21,6 @@ data IrDecl =
 data IrTm   = IrVar Name
             | IrCall IrTm [IrTm]
             | IrConst Const
-            -- | IrUnaryOp UnaryOp IrTm --VER lo agregue para el print
             | IrBinaryOp BinaryOp IrTm IrTm
             | IrLet Name IrTm IrTm
             | IrIfZ IrTm IrTm IrTm
@@ -53,8 +52,6 @@ closureConvert (App p f x)             = do
                                             cf <- closureConvert f
                                             cx <- closureConvert x
                                             return $ IrLet clos cf $ IrCall (IrAccess (IrVar clos) 0) [IrVar clos, cx]
-                                            -- Todo: ver si lo puedo optimizar para las aplicaciones como esta en el ejemplo
-                                            --return $ IrCall (IrAccess (IrVar fn) 0) ([(IrVar fn), cx])
 closureConvert fun@(Lam p n ty t)          = do
                                               codef <- fresh ""
                                               varName <- fresh n

@@ -78,7 +78,6 @@ data Decl a =
 --  show (Decl p n t) = "Let " ++ show n ++ " = " ++ show t ++ "\n"
 
 
-
 -- | AST de los términos. 
 --   - info es información extra que puede llevar cada nodo. 
 --       Por ahora solo la usamos para guardar posiciones en el código fuente.

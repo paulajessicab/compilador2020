@@ -27,7 +27,7 @@ import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Global ( GlEnv(..) )
 import Elab ( elab, desugar, desugarDec, elab',desugarDec )
-import Eval ( eval )
+--import Eval ( eval )
 import TypeChecker ( tc, tcDecl )
 import PPrint ( ppTy, prettifyModule )
 import MonadPCF
@@ -207,7 +207,7 @@ compilePhrase x =
     dot <- parseIO "<interactive>" declOrTm x
     case dot of 
       Left d  -> evalDecl d >> return ()
-      Right t -> handleTerm t >> return () --Todo acomodar elab y elab'
+      Right t -> handleTerm t >> return ()
 
 -- | Compilacion Eval para una lista de archivos
 -- Toma una lista de nombres de archivos, cambia a modo no interactivo,
@@ -242,7 +242,8 @@ evalDecl decl = do
                   nd <- handleDecl decl
                   case nd of
                     Just (Decl p x t) -> do
-                      te <- eval t  -- Ver si hay que poner evalCek
+                      v <- evalCEK t
+                      te <- valToTerm v
                       addDecl (Decl p x te)
                     _ -> return ()
 

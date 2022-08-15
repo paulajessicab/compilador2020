@@ -1,0 +1,2 @@
+let m : Nat = 7
+let total : Nat = m + 3

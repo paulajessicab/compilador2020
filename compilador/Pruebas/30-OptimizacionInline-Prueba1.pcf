@@ -1,0 +1,3 @@
+let m : Nat = 7
+let f (x:Nat) : Nat = m + x
+let total : Nat = f 3

@@ -1,0 +1,4 @@
+let id (x : Nat) : Nat = x
+let nid (n : Nat) : Nat = n
+let suma (x y:Nat) : Nat =  (nid x) + y
+let total : Nat = suma 5 (id 3)

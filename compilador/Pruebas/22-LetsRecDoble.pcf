@@ -1,0 +1,2 @@
+let rec doble (x:Nat):Nat = ifz x then 0 else succ(succ(doble(pred x)))
+let diez : Nat = doble 5

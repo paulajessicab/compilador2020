@@ -32,13 +32,13 @@ optimize decls = optimize' optimizationLimit decls
 optimize' :: MonadPCF m => Int -> [Decl Term] -> m [Decl Term]
 optimize' 0 decls = return decls
 optimize' 1 decls = inline decls >>= deadCodeElimination
-optimize' n decls = optimize' 1 decls >>= optimize' (n-1) `debug` (show decls)
+optimize' n decls = optimize' 1 decls >>= optimize' (n-1) --`debug` (show decls)
 
 
 -- | Inline Optimization
 -- | 
 inline :: MonadPCF m => [Decl Term] -> m [Decl Term]
-inline decls = mapM (inlineDecl names) decls `debug` (show (countFunctionRefs decls))
+inline decls = mapM (inlineDecl names) decls --`debug` (show (countFunctionRefs decls))
                where names = Map.filter (== 1) $ countFunctionRefs decls
 
 inlineDecl :: MonadPCF m => Map Name Int -> Decl Term -> m (Decl Term)

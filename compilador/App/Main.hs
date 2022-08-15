@@ -29,7 +29,7 @@ import Global ( GlEnv(..) )
 import Elab ( elab, desugar, desugarDec, elab',desugarDec )
 --import Eval ( eval )
 import TypeChecker ( tc, tcDecl )
-import PPrint ( ppTy, prettifyModule )
+import qualified PPrint ( pp, ppTy, prettifyModule )
 import MonadPCF
 import Common ()
 import ClosureConversion
@@ -234,15 +234,18 @@ handleTerm t = do
           ty <- tc tt (tyEnv s)
           closte <- evalCEK tt
           te <- valToTerm closte 
-          printPCF (show te ++ " : " ++ ppTy ty)
+          printPCF (PPrint.pp te ++ " : " ++ PPrint.ppTy ty)
 
 -- | Evaluacion de declaraciones
 evalDecl ::  MonadPCF m => SDecl STerm -> m ()
 evalDecl decl = do
+                  -- liftIO . putStrLn $ "SDecl " ++  show decl --Debug
                   nd <- handleDecl decl
                   case nd of
                     Just (Decl p x t) -> do
+                      -- liftIO . putStrLn $ "Origen " ++  show t --Debug
                       v <- evalCEK t
+                      -- liftIO . putStrLn $ "EvalCek " ++  show v --Debug
                       te <- valToTerm v
                       addDecl (Decl p x te)
                     _ -> return ()
@@ -327,7 +330,7 @@ runLLVMfromFile filename = do llvm <- genLLVMfromFile filename
 -- Pretty Print
 -----------------------
 
--- | Hace el pretty print del termino con SS, terminos con nombres y terminos con indices de Bruijin --TODO usar pretty printer
+-- | Hace el pretty print del termino con SS, terminos con nombres y terminos con indices de Bruijin
 printPhrase :: MonadPCF m => String -> m ()
 printPhrase x =
   do
@@ -342,7 +345,8 @@ printPhrase x =
            (V p f) -> maybe ex id <$> lookupDecl f
            _       -> return ex  
     printPCF "\nTerm:"
-    printPCF (show t)
+    printPCF (PPrint.pp t)
+    --printPCF (show t)
 
 printFiles :: MonadPCF m => [String] -> m ()
 printFiles = mapM_ (handleFile True True)
@@ -357,8 +361,8 @@ typeCheckPhrase x = do
          tt <- elab t
          s <- get
          ty <- tc tt (tyEnv s)
-         printPCF (ppTy ty)
-         return ()  --TODO ver
+         printPCF (PPrint.ppTy ty)
+         return ()
 
 -- | Typechecking para archivos
 typeCheckFiles :: MonadPCF m => [String] -> m ()
@@ -422,13 +426,13 @@ handleFile opt pp f = do
       Just d -> do
                   decls <- sModuleToModule d
                   condPrint pp "> Declaraciones: \n"
-                  condPrint pp $ prettifyModule decls
+                  condPrint pp $ PPrint.prettifyModule decls
                   case opt of  -- Agrego las declaraciones para usarlas en el optimizador
                     True  -> do 
                               mapM_ addDecl decls
                               optdecl <- optimize decls
                               condPrint pp " > Resultado de la optimizacion: \n"
-                              condPrint pp $ prettifyModule optdecl
+                              condPrint pp $ PPrint.prettifyModule optdecl
                               return optdecl
                     _ -> return decls
 

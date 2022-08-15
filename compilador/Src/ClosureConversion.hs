@@ -8,6 +8,7 @@ import Control.Monad
 import Control.Monad.Writer.Lazy
 import Control.Monad.State.Lazy
 import Debug.Trace
+import Data.List (isPrefixOf)
 
 debug = flip trace
 
@@ -31,10 +32,10 @@ data IrTm   = IrVar Name
 -- | Realiza la conversion de clausuras y el hoisting de las funciones
 closureConvert :: Term -> StateT Int (Writer [IrDecl]) IrTm
 closureConvert (V p (Free n))          = return $ IrVar n
-closureConvert (V p (Bound i))       = error "Ups, entre en bound"
 -- Caso Bound: Todas las funciones deben terminar siendo top level, es decir, que no van a tener variables bindeadas
+closureConvert (V p (Bound i))         = error "Error en Closure Conversion. Se encontro bound variable."
 closureConvert (Const p c)             = return $ IrConst c
-closureConvert (Let p n ty t0 t1)         = do
+closureConvert (Let p n ty t0 t1)      = do
                                             ct0 <- closureConvert t0
                                             ct1 <- closureConvert (open n t1)
                                             return $ IrLet n ct0 ct1
@@ -52,7 +53,7 @@ closureConvert (App p f x)             = do
                                             cf <- closureConvert f
                                             cx <- closureConvert x
                                             return $ IrLet clos cf $ IrCall (IrAccess (IrVar clos) 0) [IrVar clos, cx]
-closureConvert fun@(Lam p n ty t)          = do
+closureConvert (Lam p n ty t)          = do
                                               codef <- fresh ""
                                               varName <- fresh n
                                               ct <- closureConvert (open varName t)
@@ -61,8 +62,8 @@ closureConvert fun@(Lam p n ty t)          = do
                                               innerTerm <- closureRefs cloName ct fv
                                               tell [IrFun codef 2 [cloName, varName] innerTerm]
                                               return $ MkClosure codef (IrVar <$> fv) 
-                                                where fv = freeVars fun
-closureConvert f@(Fix p n0 ty0 n1 ty1 t) = do 
+                                                where fv = filter (isPrefixOf "__") (freeVars t)
+closureConvert (Fix p n0 ty0 n1 ty1 t) = do 
                                             codef <- fresh ""
                                             varName <- fresh n0
                                             n1f <- fresh n1
@@ -70,7 +71,7 @@ closureConvert f@(Fix p n0 ty0 n1 ty1 t) = do
                                             cloName <- fresh "clo"
                                             tell [IrFun codef 2 [cloName, n1f] (IrLet varName (IrVar cloName) ct)] 
                                             return $ MkClosure codef (IrVar <$> fv) 
-                                                where fv = freeVars f
+                                                where fv = filter (isPrefixOf "__") (freeVars t)
 
 -- | Toma el nombre de una clausura, un termino y una lista ordenada de nombres de variables libres
 -- | Retorna el IrTm que contiene el termino y las referencias a esas variables dentro de la clausura

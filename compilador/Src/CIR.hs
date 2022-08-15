@@ -108,7 +108,7 @@ runCanonValOrFun (IrFun name ar args body) = return (Left (name, args, blocks))
                                                                                   entry <- addBlock entryBlockName
                                                                                   setBlock entry
                                                                                   -- Manejo los parámetros por registros
-                                                                                  -- Para poder recuperarlos después, guardo en los locales el registro VER
+                                                                                  -- Para poder recuperarlos después, guardo en los locales el registro
                                                                                   forM_ args (\a -> do saveLocal a (V (R (Temp a)))) 
                                                                                   retReg <- freshRegName
                                                                                   bc <- canon body

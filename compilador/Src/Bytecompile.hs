@@ -189,27 +189,18 @@ runBC c = runBC' c [] []
 
 runBC' :: MonadPCF m => Bytecode -> EnvBVM -> StackBVM -> m ()
 runBC' (CONST : n : cs) e s = do runBC' cs e ((I n):s)
-{-runBC' (SUCC : cs) e (n:s) = do
-                                case n of 
-                                  I m -> do runBC' cs e ((I (m+1)):s)
-                                  _   -> failPCF "Error al ejecutar el SUCC: el argumento debe ser de tipo Nat."
-runBC' (PRED : cs) e (n:s) = do
-                                case n of 
-                                  I 0 -> failPCF "Error al ejecutar PRED: no se puede obtener el predecesor de 0."
-                                  I m -> do runBC' cs e ((I (m-1)):s)
-                                  _   -> failPCF "Error al ejecutar PRED: el argumento debe ser de tipo Nat."-}
 -- La suma y la resta estan en notacion polaca inversa
 -- Tomo los dos ultimos elementos del stack, los saca, los suma/resta
 -- y pushea el resultado. Tener en cuenta para la resta que se sacan al reves
 runBC' (ADD : cs) e (a:b:s) = do case (a,b) of
                                   (I n, I m) -> do runBC' cs e $ I (m + n):s
-                                  _ -> failPCF "Error al ejecutar la operacion ADD: el argumento debe ser de tipo Nat."
+                                  _ -> failPCF "Error al ejecutar la operacion ADD: los argumentos deben ser de tipo Nat."
 runBC' (SUB : cs) e (a:b:s) = do case (a,b) of
                                   (I n, I m) -> do 
                                                   case (n > m) of
                                                     True  -> failPCF "Error al ejecutar la operacion SUB: el resultado no puede ser negativo."
                                                     False -> runBC' cs e $ I (m - n):s
-                                  _ -> failPCF "Error al ejecutar la operacion SUB"
+                                  _ -> failPCF "Error al ejecutar la operacion SUB: los argumentos deben ser de tipo Nat."
 runBC' (ACCESS : i : cs) e s = do runBC' cs e ((e!!i):s)
 runBC' (CALL : cs) e (v:f:s) = do cf <- getValBC f
                                   ef <- getValEnv f
@@ -242,3 +233,12 @@ runBC' (IFZ : lenT0' : cs) e (n : s) = do
                                             0 -> do runBC' cs e s
                                             _ -> do runBC' (drop lenT0' cs) e s --Salto t0', ejecuto a partir de t1
 runBC' _ _ _ = do failPCF "Error al ejecutar el bytecode."
+{-runBC' (SUCC : cs) e (n:s) = do
+                                case n of 
+                                  I m -> do runBC' cs e ((I (m+1)):s)
+                                  _   -> failPCF "Error al ejecutar el SUCC: el argumento debe ser de tipo Nat."
+runBC' (PRED : cs) e (n:s) = do
+                                case n of 
+                                  I 0 -> failPCF "Error al ejecutar PRED: no se puede obtener el predecesor de 0."
+                                  I m -> do runBC' cs e ((I (m-1)):s)
+                                  _   -> failPCF "Error al ejecutar PRED: el argumento debe ser de tipo Nat."-}

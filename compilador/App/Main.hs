@@ -239,13 +239,10 @@ handleTerm t = do
 -- | Evaluacion de declaraciones
 evalDecl ::  MonadPCF m => SDecl STerm -> m ()
 evalDecl decl = do
-                  -- liftIO . putStrLn $ "SDecl " ++  show decl --Debug
                   nd <- handleDecl decl
                   case nd of
                     Just (Decl p x t) -> do
-                      -- liftIO . putStrLn $ "Origen " ++  show t --Debug
                       v <- evalCEK t
-                      -- liftIO . putStrLn $ "EvalCek " ++  show v --Debug
                       te <- valToTerm v
                       addDecl (Decl p x te)
                     _ -> return ()

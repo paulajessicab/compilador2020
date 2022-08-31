@@ -41,7 +41,7 @@ import LLVM.AST (Module)
 import qualified Data.Text.Lazy as L
 import qualified Data.Text.IO as TIO
 import System.Process (system)
-import Data.Maybe(maybeToList)
+import Data.Maybe(maybeToList, fromJust)
 import Optimizations (optimize)
 import LLVM.Pretty (ppllvm)
 import System.IO (hPutStrLn)
@@ -307,8 +307,8 @@ genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
 
 genLLVMfromFile :: MonadPCF m => String -> m Module
 genLLVMfromFile f = do 
-                      cc <- closureConvertFile f
-                      let llvm = codegen (runCanon cc)
+                      cc <- catchErrors $ closureConvertFile f
+                      let llvm = codegen (runCanon (fromJust cc))
                       return llvm
                       
 -----------------------

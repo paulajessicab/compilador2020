@@ -88,8 +88,8 @@ storeGlobal :: (Name, IrTm) -> CanonMonad ()
 storeGlobal (name, t) = do
                           ct <- canon t
                           addInstruction $ Store name ct
-                          --n <- freshRegName  --DEBUG 
-                          --addInstruction $ Assign (Temp n) (UnOp Print (G name)) --DEBUG
+                          n <- freshRegName
+                          addInstruction $ Assign (Temp n) (UnOp Print (G name))
 
 -- Toma la lista de globales, las declaraciones y genera canon
 runCanon' :: [IrDecl] -> Writer [(Name, IrTm)] [Either CanonFun CanonVal]

@@ -22,3 +22,30 @@ stack ghci
 
 stack ghci src/TypeChecker.hs
 ```
+
+
+Modos de uso:
+
+* Modo interactivo:
+```code
+stack run
+```
+
+* Modo interactivo:
+```code
+stack run
+```
+
+* Typecheck:
+```code
+stack run -- -t <filenames>
+
+stack run -- --typecheck <filenames>
+```
+
+* Typecheck:
+```code
+stack run -- -t <filenames>
+
+stack run -- --typecheck <filenames>
+```

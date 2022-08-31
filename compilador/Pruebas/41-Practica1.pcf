@@ -1,0 +1,37 @@
+let suma : Nat -> Nat -> Nat = fix (suma : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else succ (suma m (pred n))
+
+let resta : Nat -> Nat -> Nat = fix (resta : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else pred(resta m (pred n))
+
+let mult : Nat -> Nat -> Nat = fix (mult : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then 0 else suma m (mult m (pred n))
+
+let exp : Nat -> Nat -> Nat = fix (exp : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then 1 else mult m (exp m (pred n))
+
+let fact : Nat -> Nat = fix(fact : Nat -> Nat) (m : Nat) -> ifz m then 1 else mult m (fact (pred m))
+
+let true : Nat = 0
+
+let false : Nat = 1
+
+let ifthenelse : Nat -> Nat -> Nat -> Nat = fun (c : Nat) -> fun (t : Nat) -> fun (e : Nat) -> ifz c then t else e
+
+let pair : Nat -> Nat -> Nat -> Nat = fun (x : Nat) -> fun (y : Nat) -> fun (b: Nat) -> ifthenelse b x y
+
+let proj1 : (Nat -> Nat) -> Nat = fun (p : Nat -> Nat) -> p true
+
+let proj2 : (Nat -> Nat) -> Nat  = fun (p : Nat -> Nat) -> p false
+
+
+let gcd : Nat -> Nat -> Nat = fix (gcd : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else (ifz m then n else (ifz (resta n m) then gcd (resta m n) n else gcd m (resta n m)))
+
+
+let rnat : Nat -> (Nat -> Nat -> Nat) -> Nat = fun (z : Nat) -> fun (b : Nat -> Nat -> Nat) -> fix (f : Nat -> Nat) (m : Nat) -> ifz m then z else b (f (pred m)) (pred m) 
+
+let sumar : Nat -> Nat -> Nat = fun (x : Nat) -> fun (y : Nat) -> rnat x (fun (z: Nat) -> fun (w : Nat) -> succ z) y
+
+
+let minimizadorN : (Nat -> Nat) -> Nat -> Nat = fix (minimizadorN : (Nat-> Nat) -> Nat -> Nat) (f : Nat -> Nat) -> fun (n : Nat) -> ifz f n then n else minimizadorN f (succ n)
+
+let minimizador : (Nat -> Nat) -> Nat = fun (f : Nat -> Nat) -> minimizadorN f 0
+
+let pruebaMin : Nat -> Nat = fun (n : Nat) -> resta 2 n
+ 

@@ -223,7 +223,7 @@ compileFile ::  MonadPCF m => String -> m ()
 compileFile f = do 
     decls <- fileToSDecls f
     case decls of
-      Nothing -> printPCF "error"
+      Nothing -> printPCF "Error al compilar. No se pudieron parsear las SDecl"
       Just d  -> mapM_ evalDecl d
 
 -- | Manejo de los terminos (solo para modo interactivo)
@@ -421,7 +421,7 @@ handleFile opt pp f = do
     sdecls <- fileToSDecls f
     case sdecls of
       Nothing -> do 
-                    printPCF "error"
+                    printPCF "Error al compilar. No se pudieron parsear las SDecl."
                     return []
       Just d -> do
                   decls <- sModuleToModule d

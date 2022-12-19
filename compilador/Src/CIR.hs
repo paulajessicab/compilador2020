@@ -255,13 +255,15 @@ canon (IrIfZ cond t e)    = do
                               setBlock thenBName
                               ct <- canon t
                               addInstruction $ Assign (Temp rt) ct
+                              thenPhiName <- getBlock
                               addTerminator $ Jump contBName
                               setBlock elseBName
                               ce <- canon e
                               addInstruction $ Assign (Temp re) ce
+                              elsePhiName <- getBlock
                               addTerminator $ Jump contBName
                               setBlock contBName
-                              return $ Phi [(thenBName, (R (Temp rt))), (elseBName, (R (Temp re)))]
+                              return $ Phi [(thenPhiName, (R (Temp rt))), (elsePhiName, (R (Temp re)))]
 canon (ClosureConversion.MkClosure name ts) = do
                                                 cts <- mapM canonList ts
                                                 return $ CIR.MkClosure name cts

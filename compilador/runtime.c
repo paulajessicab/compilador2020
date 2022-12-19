@@ -6,7 +6,7 @@
 #include <gc.h>
 
 uint32_t pcf_print(uint32_t x) {
-	printf("%" PRIu32 "\n", x);
+	printf("%d" PRIu32 "\n", x);
 	return x;
 }
 

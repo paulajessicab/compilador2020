@@ -305,7 +305,10 @@ genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
 genLLVMfromFile :: MonadPCF m => String -> m Module
 genLLVMfromFile f = do 
                       cc <- catchErrors $ closureConvertFile f
-                      let llvm = codegen (runCanon (fromJust cc))
+                      printPCF $ show $ cc
+                      let canon = runCanon (fromJust cc)
+                      printPCF $ show $ canon
+                      let llvm = codegen canon
                       return llvm
                       
 -----------------------
@@ -316,9 +319,9 @@ runLLVMfromFiles :: MonadPCF m => [String] -> m ()
 runLLVMfromFiles = mapM_ runLLVMfromFile
 
 runLLVMfromFile :: MonadPCF m => String -> m ()                      
-runLLVMfromFile filename = do llvm <- genLLVMfromFile filename
+runLLVMfromFile filename = do llvm <- catchErrors $ genLLVMfromFile filename
                               let commandline = "clang -Wno-override-module output.ll runtime.c -lgc -o prog"
-                              liftIO $ TIO.writeFile "output.ll" (L.toStrict (ppllvm llvm)) 
+                              liftIO $ TIO.writeFile "output.ll" (L.toStrict (ppllvm (fromJust llvm))) 
                               liftIO $ system commandline
                               liftIO $ system "./prog"
                               return ()

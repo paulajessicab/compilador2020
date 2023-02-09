@@ -55,3 +55,17 @@ executables:
     - -fwarn-incomplete-patterns
     dependencies:
     - compiladores
+
+tests:
+  # LLVM test suite
+  LLVM:
+    main: Llvm.hs
+    source-dirs: Test
+    ghc-options:
+      - -main-is Llvm
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - compiladores
+      - HTF

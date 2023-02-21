@@ -82,14 +82,12 @@ runCanon xs = CanonProg ([Left ("pcfmain", [], mainblocks)] ++ a)
                                                               entry <- addBlock entryBlockName
                                                               setBlock entry
                                                               mapM_ storeGlobal w
-                                                              addTerminator $ Return $ C 0
+                                                              addTerminator $ Return $G (fst(last w))
 
 storeGlobal :: (Name, IrTm) -> CanonMonad ()
 storeGlobal (name, t) = do
                           ct <- canon t
                           addInstruction $ Store name ct
-                          n <- freshRegName
-                          addInstruction $ Assign (Temp n) (UnOp Print (G name))
 
 -- Toma la lista de globales, las declaraciones y genera canon
 runCanon' :: [IrDecl] -> Writer [(Name, IrTm)] [Either CanonFun CanonVal]

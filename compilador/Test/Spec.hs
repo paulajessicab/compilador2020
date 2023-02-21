@@ -16,4 +16,5 @@ runTestWith script = do
     bbTArg = defaultBBTArgs
       { bbtArgs_stdoutSuffix = ".pcf.out"
       , bbtArgs_stderrSuffix = ".pcf.err"
+      , bbtArgs_verbose = True
       }

@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 filename="${@%.*}"
-stack run -- -runllvm "$@" 
+stack exec compiladores-exe -- --runllvm $filename.pcf

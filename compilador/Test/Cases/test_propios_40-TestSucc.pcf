@@ -1,0 +1,2 @@
+let s : Nat -> Nat -> Nat = succ
+let total : Nat = s 3

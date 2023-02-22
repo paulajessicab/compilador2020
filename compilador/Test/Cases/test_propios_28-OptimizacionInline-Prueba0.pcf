@@ -1,0 +1,2 @@
+let f (x:Nat) : Nat = 3 + x
+let total : Nat = f 3

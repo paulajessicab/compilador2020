@@ -1,0 +1,1 @@
+let total : Nat = ifz (5 - 2) then 2 else 3

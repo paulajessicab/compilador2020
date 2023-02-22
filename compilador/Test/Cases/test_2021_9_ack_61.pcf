@@ -1,0 +1,9 @@
+let prd (x : Nat) : Nat = x - 1
+let sc (x : Nat) : Nat = x + 1
+
+let rec ack (m n : Nat) : Nat =
+    ifz m then sc n
+        else ifz n then ack (prd m) 1
+            else ack (prd m) (ack m (prd n))
+
+let ret : Nat = ack 3 3

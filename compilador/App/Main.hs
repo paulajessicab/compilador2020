@@ -29,7 +29,7 @@ import Global ( GlEnv(..) )
 import Elab ( elab, desugar, desugarDec, elab',desugarDec )
 --import Eval ( eval )
 import TypeChecker ( tc, tcDecl )
-import qualified PPrint ( pp, ppTy, prettifyModule )
+import qualified PPrint ( pp, prettifyModule )
 import MonadPCF
 import Common ()
 import ClosureConversion
@@ -229,12 +229,13 @@ compileFile f = do
 -- | Manejo de los terminos (solo para modo interactivo)
 handleTerm ::  MonadPCF m => STerm -> m ()
 handleTerm t = do
-          tt <- elab t
-          s <- get -- recupero el entorno
-          ty <- tc tt (tyEnv s)
-          closte <- evalCEK tt
-          te <- valToTerm closte 
-          printPCF (PPrint.pp te ++ " : " ++ PPrint.ppTy ty)
+                  tt <- elab t
+                  s <- get -- recupero el entorno
+                  ty <- tc tt (tyEnv s)
+                  closte <- evalCEK tt
+                  te <- valToTerm closte 
+                  return ()
+                  --printPCF (PPrint.pp te ++ " : " ++ PPrint.ppTy ty)
 
 -- | Evaluacion de declaraciones
 evalDecl ::  MonadPCF m => SDecl STerm -> m ()
@@ -256,7 +257,7 @@ evalDecl decl = do
 bytecompileFiles :: MonadPCF m => [String] -> m ()
 bytecompileFiles [] = return ()
 bytecompileFiles (f:fs) = do
-                            btc <- handleFile True True f >>= bytecompileModule
+                            btc <- handleFile True False f >>= bytecompileModule
                             printPCF ("Guardando "++f++"... \n")
                             liftIO $ catch (bcWrite btc (f ++ ".byte"))
                                   (\e -> do let err = show (e :: IOException)
@@ -272,7 +273,7 @@ runFiles = mapM_ runFile
 
 runFile :: MonadPCF m => String -> m ()
 runFile f = do
-    printPCF ("Ejecutando "++f++"... \n")
+    --printPCF ("Ejecutando "++f++"... \n")
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (bcRead filename)
                (\e -> do let err = show (e :: IOException)
@@ -305,10 +306,11 @@ genLLVMfromFiles xs = mapM_ genLLVMfromFile xs
 genLLVMfromFile :: MonadPCF m => String -> m Module
 genLLVMfromFile f = do 
                       cc <- catchErrors $ closureConvertFile f
-                      printPCF $ show $ cc
+                      --printPCF $ show $ cc
                       let canon = runCanon (fromJust cc)
-                      printPCF $ show $ canon
+                      --printPCF $ show $ canon
                       let llvm = codegen canon
+                      --printPCF $ show $ llvm
                       return llvm
                       
 -----------------------
@@ -361,7 +363,7 @@ typeCheckPhrase x = do
          tt <- elab t
          s <- get
          ty <- tc tt (tyEnv s)
-         printPCF (PPrint.ppTy ty)
+         --printPCF (PPrint.ppTy ty)
          return ()
 
 -- | Typechecking para archivos
@@ -406,7 +408,7 @@ handleDecl decl = do
 -- | Toma un archivo y recupera una lista de declaraciones con syntactic sugar
 fileToSDecls :: MonadPCF m => String -> m (Maybe [SDecl STerm])
 fileToSDecls f = do
-                  printPCF ("Abriendo "++f++"... \n")
+                  --printPCF ("Abriendo "++f++"... \n")
                   let filename = reverse(dropWhile isSpace (reverse f))
                   x <- liftIO $ catch (readFile filename) 
                             (\e -> do let err = show (e :: IOException) 
@@ -430,10 +432,12 @@ handleFile opt pp f = do
                   case opt of  -- Agrego las declaraciones para usarlas en el optimizador
                     True  -> do 
                               mapM_ addDecl decls
-                              optdecl <- optimize decls
-                              condPrint pp " > Resultado de la optimizacion: \n"
-                              condPrint pp $ PPrint.prettifyModule optdecl
-                              return optdecl
+                              moptdecl <- catchErrors (optimize decls)
+                              case moptdecl of 
+                                Nothing -> failPCF ">> Error en la optimizacion..."
+                                Just optdecl -> do  condPrint pp " > Resultado de la optimizacion: \n"
+                                                    condPrint pp $ PPrint.prettifyModule optdecl
+                                                    return optdecl
                     _ -> return decls
 
 condPrint :: MonadPCF m => Bool -> String -> m ()                  

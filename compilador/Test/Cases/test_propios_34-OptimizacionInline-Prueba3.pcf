@@ -1,0 +1,2 @@
+let f (x y z:Nat) : Nat = x + y + z
+let total : Nat = f 3 4 5

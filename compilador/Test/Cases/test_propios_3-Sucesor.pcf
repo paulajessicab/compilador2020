@@ -1,0 +1,1 @@
+let sucesor : Nat = succ 4

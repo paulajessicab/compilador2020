@@ -69,4 +69,16 @@ tests:
     dependencies:
       - compiladores
       - HTF
-
+      
+  # Bytecode Test Suite
+  Bytecode:
+    main: Byte.hs
+    source-dirs: Test
+    ghc-options:
+      - -main-is Byte
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - compiladores
+      - HTF

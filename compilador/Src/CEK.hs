@@ -72,7 +72,7 @@ destroy :: MonadPCF m => Val -> Kont -> m Val
 destroy v [] = return v -- caso base -> estado final
 destroy (Cons 0) (KPred:k) = destroy (Cons 0)  k
 destroy (Cons n) (KPred:k) = case (n < 1) of
-                                True -> failPCF "No se puede operar con numeros negativos" 
+                                True -> destroy (Cons 0) k
                                 False -> destroy (Cons (n-1)) k
 destroy (Cons n) (KSucc:k) = destroy (Cons (n+1)) k
 destroy (Cons 0) ((KIfZ env t _):k) = search t env k
@@ -81,7 +81,7 @@ destroy (Cons m) ((KAddR env n):k) = search n env ((KAddL env m) : k)
 destroy (Cons m) ((KSubR env n):k) = do search n env ((KSubL env m) : k)
 destroy (Cons n) ((KAddL env m):k) = destroy (Cons (m+n)) k
 destroy (Cons n) ((KSubL env m):k) = do case (m < n) of
-                                          True  -> failPCF "No se puede operar con numeros negativos"
+                                          True  -> destroy (Cons 0) k
                                           False -> destroy (Cons (m-n)) k
 destroy pp@(VClos c) ((KArg env t):k) = search t env ((KClos c):k)
 destroy v (KClos (ClosFun env _ _ t):k) = search t (v:env) k

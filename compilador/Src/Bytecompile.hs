@@ -198,7 +198,7 @@ runBC' (ADD : cs) e (a:b:s) = do case (a,b) of
 runBC' (SUB : cs) e (a:b:s) = do case (a,b) of
                                   (I n, I m) -> do 
                                                   case (n > m) of
-                                                    True  -> failPCF "Error al ejecutar la operacion SUB: el resultado no puede ser negativo."
+                                                    True  -> runBC' cs e $ I 0:s
                                                     False -> runBC' cs e $ I (m - n):s
                                   _ -> failPCF "Error al ejecutar la operacion SUB: los argumentos deben ser de tipo Nat."
 runBC' (ACCESS : i : cs) e s = do runBC' cs e ((e!!i):s)

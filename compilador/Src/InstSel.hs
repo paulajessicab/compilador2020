@@ -152,12 +152,16 @@ cgExpr (BinOp op v1 v2) = do
                             v2 <- cgV v2
                             vf1 <- freshName
                             vf2 <- freshName
+                            b <- freshName
+                            s <- freshName
                             r <- freshName
                             tell [vf1 := PtrToInt v1 integer []]
                             tell [vf2 := PtrToInt v2 integer []]
                             case op of
                               Lang.Add -> do tell [r := Add False False (LocalReference integer vf1) (LocalReference integer vf2) []]
-                              Lang.Sub -> do tell [r := Sub False False (LocalReference integer vf1) (LocalReference integer vf2) []]
+                              Lang.Sub -> do tell [b := ICmp IP.SGT (LocalReference integer vf2) (LocalReference integer vf1) []]
+                                             tell [s := Sub False False (LocalReference integer vf1) (LocalReference integer vf2) []]
+                                             tell [r := Select (LocalReference i1 b) (cint 0) (LocalReference integer s) []]          
                             return (IntToPtr (LocalReference integer r) ptr [])
 
 cgExpr (UnOp Lang.Succ v) = do

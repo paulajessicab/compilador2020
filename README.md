@@ -26,14 +26,23 @@ stack ghci src/TypeChecker.hs
 
 Modos de uso:
 
-* Modo interactivo:
+* Ayuda:
 ```code
-stack run
+stack run -- -h
+
+stack run -- --help
 ```
 
 * Modo interactivo:
 ```code
 stack run
+```
+
+* Pretty Print:
+```code
+stack run -- -p <filenames>
+
+stack run -- --prettyprint <filenames>
 ```
 
 * Typecheck:
@@ -43,9 +52,31 @@ stack run -- -t <filenames>
 stack run -- --typecheck <filenames>
 ```
 
-* Typecheck:
+* Compilación para BVM:
 ```code
-stack run -- -t <filenames>
+stack run -- -c <filenames>
 
-stack run -- --typecheck <filenames>
+stack run -- --bytecompile <filenames>
+```
+
+* Imprimir resultado luego de Closure Conversion y hoisting:
+```code
+stack run -- --cc <filenames>
+```
+
+* Ejecutar bytecode en la BVM (archivos .byte):
+```code
+stack run -- -c <filenames>
+
+stack run -- --bytecompile <filenames>
+```
+
+* Generar código LLVM:
+```code
+stack run -- --llvm <filenames>
+```
+
+* Generar y ejecutar código LLVM:
+```code
+stack run -- --runllvm <filenames>
 ```

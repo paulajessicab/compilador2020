@@ -23,6 +23,17 @@ stack ghci
 stack ghci src/TypeChecker.hs
 ```
 
+Existe una batería de casos de prueba, se pueden ejecutar del siguiente modo:
+
+* LLVM:
+```code
+stack test :LLVM
+```
+
+* BVM:
+```code
+stack test :Bytecode
+```
 
 Modos de uso:
 

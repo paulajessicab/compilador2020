@@ -1,6 +1,0 @@
-let a : Nat = 10
-let b : Nat = a + 7
-let c : Nat = b - 3
-
-
-let total : Nat = ifz c then 1 else 2

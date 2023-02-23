@@ -1,3 +1,0 @@
-let f (x : Nat) : Nat = x + 8
-let g (x : Nat) (y: Nat) : Nat = (f x) + y
-let total : Nat = g 3 5

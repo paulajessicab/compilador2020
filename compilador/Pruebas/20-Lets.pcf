@@ -1,2 +1,0 @@
-let cond : Nat -> Nat -> Nat = fun (x:Nat) (y:Nat) -> ifz x then y else 1
-let total : Nat =  cond 4 5

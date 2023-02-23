@@ -11,4 +11,4 @@ stack.yaml.lock
 *.blg
 *.bbl
 compiladores.cabal
-Pruebas/*.byte
+Test/Cases/*.byte

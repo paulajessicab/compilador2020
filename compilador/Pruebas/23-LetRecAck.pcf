@@ -1,2 +1,0 @@
-let rec ack (m:Nat) (n:Nat) : Nat = ifz m then succ n else (ifz n then ack (pred m) 1 else ack (pred m) (ack m (pred n)))
-let total : Nat = ack 2 3

@@ -1,2 +1,0 @@
-let f (x:Nat) (y:Nat) : Nat = x + y
-let total : Nat = f 3 4

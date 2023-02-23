@@ -1,5 +1,0 @@
-let m : Nat = 7 + 5
-let t : Nat = m
-let id (x : Nat) : Nat = x
-let f (x:Nat) : Nat = (id m) + x
-let total : Nat = f (id 3)

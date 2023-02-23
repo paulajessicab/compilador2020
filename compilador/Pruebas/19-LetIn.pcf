@@ -1,1 +1,0 @@
-let succ5 : Nat = let app5 (f: Nat -> Nat) : Nat = f 5 in app5 succ

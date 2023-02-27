@@ -121,14 +121,6 @@ binOp = do
           i <- getPos
           SBinaryOp i <$> binOpName
 
--- unopApp :: P STerm
--- unopApp = do i <- getPos
---              f <- unaryOp
---              args <- optionMayby (many1 atom)
---              case args of
---                   Nothing -> return $ SApp i f Nothing
---                   Just as -> return $ foldl (SApp i) f (fmap Just as)
-
 -- No necesito una regla para el UnaryOp aplicado
 -- porque es redundante con la de aplicación (el no aplicado es un atom)
 atom :: P STerm
@@ -204,8 +196,9 @@ tm =  app <|> binOp <|> lam <|> ifz <|> unaryOp <|> fix <|> termLetRec <|> termL
 tyvar :: P Name
 tyvar = Tok.lexeme lexer $ do
           c  <- upper
+          ns <- many digit
           cs <- option "" identifier
-          return (c:cs)
+          return (c:(ns++cs))
 
 -- | Parser de declaración de sinónimos de tipos
 declTySyn :: P (SDecl STerm)

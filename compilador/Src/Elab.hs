@@ -44,7 +44,10 @@ desugar (SApp p (SApp _ a (SBinaryOp _ op)) b) = do
                                                   da <- desugar a
                                                   db <- desugar b
                                                   return $ BinaryOp p op da db
-desugar (SApp p a (SBinaryOp _ op)) = do
+desugar (SApp p (SBinaryOp _ op) b) = do 
+                                        db <- desugar b
+                                        return $ Lam p "x" NatTy (BinaryOp p op (V p "x") db)
+desugar (SApp p a (SBinaryOp _ op)) = do 
                                         da <- desugar a
                                         return $ Lam p "y" NatTy (BinaryOp p op da (V p "y"))
 desugar (SApp p h a)               = do

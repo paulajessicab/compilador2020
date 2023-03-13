@@ -1,0 +1,3 @@
+let restaParcialDerecha : Nat -> Nat = - 5
+
+let ans : Nat = restaParcialDerecha 10

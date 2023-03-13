@@ -1,0 +1,3 @@
+"Test/Cases/should-fail/test_propios_41-Err_Parse.pcf" (line 1, column 20):
+unexpected "N"
+expecting "="

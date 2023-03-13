@@ -1,0 +1,2 @@
+let f (x:Nat) : Nat = x + 1
+let ans : Nat = f 3

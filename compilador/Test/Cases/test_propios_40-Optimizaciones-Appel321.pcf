@@ -1,0 +1,15 @@
+# No captura variables
+#let x : Nat = 5
+#let g (y : Nat) : Nat = y + x
+#let f (x : Nat) : Nat = (g 1) + x
+#let ans : Nat = (f 2) + x
+#13
+
+let x : Nat = 5
+let g (y : Nat) : Nat = y + x
+let f (x : Nat) : Nat = (g x) + 3
+let ans : Nat = (f 2) + x
+
+#15
+
+#let g (x:Nat) (y:Nat) : Nat = x + y

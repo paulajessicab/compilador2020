@@ -110,7 +110,7 @@ bc (BinaryOp _ op a b) = do -- Escribo la suma y la resta con notacion polaca in
                               Add -> return $ bca ++ bcb ++ [ADD]
                               _   -> return $ bca ++ bcb ++ [SUB]
 bc (V _ (Bound i))    = return [ACCESS, i]
-bc (V l (Free n))     = failPCF "No estamos trabajando con variables globales"
+bc (V p (Free n))     = failPosPCF p ">> Error Bytecompile: No estamos trabajando con variables globales"
 bc (Let _ _ _ e1 e2) = do  
                           bce2 <- bc e2
                           bce1 <- bc e1
@@ -166,7 +166,7 @@ bytecompileModule m = do minn <- bcModuleInner m
                          return $ ctp ++ [PRINT, STOP]
 
 bcModuleInner :: MonadPCF m => Module -> m Term
-bcModuleInner [] = failPCF "No code to load"
+bcModuleInner [] = failPCF ">> Error Bytecompile: No hay codigo para compilar."
 bcModuleInner [Decl p v e] = return $ Let p v NatTy e (close v e)
 bcModuleInner ((Decl p v e):xs) = do mxs <- bcModuleInner xs
                                      return $ Let p v NatTy e (close v mxs)
@@ -194,13 +194,13 @@ runBC' (CONST : n : cs) e s = do runBC' cs e ((I n):s)
 -- y pushea el resultado. Tener en cuenta para la resta que se sacan al reves
 runBC' (ADD : cs) e (a:b:s) = do case (a,b) of
                                   (I n, I m) -> do runBC' cs e $ I (m + n):s
-                                  _ -> failPCF "Error al ejecutar la operacion ADD: los argumentos deben ser de tipo Nat."
+                                  _ -> failPCF ">> Run Bytecode: Los argumentos de ADD deben ser de tipo Nat."
 runBC' (SUB : cs) e (a:b:s) = do case (a,b) of
                                   (I n, I m) -> do 
                                                   case (n > m) of
                                                     True  -> runBC' cs e $ I 0:s
                                                     False -> runBC' cs e $ I (m - n):s
-                                  _ -> failPCF "Error al ejecutar la operacion SUB: los argumentos deben ser de tipo Nat."
+                                  _ -> failPCF ">> Run Bytecode: Los argumentos de SUB deben ser de tipo Nat."
 runBC' (ACCESS : i : cs) e s = do runBC' cs e ((e!!i):s)
 runBC' (CALL : cs) e (v:f:s) = do cf <- getValBC f
                                   ef <- getValEnv f
@@ -217,7 +217,7 @@ runBC' (RETURN : _) _ (v:raf:s) = do craf <- getValBC raf
 runBC' (PRINT : cs) e (n:s) = do
                                 case n of
                                   I m -> printPCF (show m) 
-                                  _   -> failPCF "Error al ejecutar PRINT: el argumento debe ser de tipo Nat."
+                                  _   -> failPCF ">> Run Bytecode: El argumento de PRINT debe ser de tipo Nat."
                                 runBC' cs e (n:s)
 runBC' (FIX : cs) e (clos:s) = do
                                   cf <- getValBC clos
@@ -232,7 +232,7 @@ runBC' (IFZ : lenT0' : cs) e (n : s) = do
                                           case i of
                                             0 -> do runBC' cs e s
                                             _ -> do runBC' (drop lenT0' cs) e s --Salto t0', ejecuto a partir de t1
-runBC' _ _ _ = do failPCF "Error al ejecutar el bytecode."
+runBC' _ _ _ = do failPCF ">> Run Bytecode: Error no especificado."
 {-runBC' (SUCC : cs) e (n:s) = do
                                 case n of 
                                   I m -> do runBC' cs e ((I (m+1)):s)

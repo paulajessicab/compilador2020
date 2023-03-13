@@ -151,7 +151,7 @@ makeBlock :: (Name, BlockState) -> BasicBlock
 makeBlock (name, (BlockState _ i t)) = (name, (reverse i), (makeTerm t))
       where
         makeTerm (Just x) = x
-        makeTerm (Nothing) = error $ "El bloque no tiene terminador"
+        makeTerm (Nothing) = error ">> Error CIR: El bloque no tiene terminador."
 
 emptyBlock :: Int -> BlockState
 emptyBlock i = BlockState i [] Nothing
@@ -185,7 +185,7 @@ current = do
   blks <- gets blocks
   case Map.lookup c blks of
     Just x -> return x
-    Nothing -> error $ "No existe el bloque: " ++ show c
+    Nothing -> error $ ">> Error CIR: No existe el bloque: " ++ show c
 
 freshRegName :: CanonMonad Name
 freshRegName = do 

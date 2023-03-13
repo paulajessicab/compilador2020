@@ -33,7 +33,7 @@ data IrTm   = IrVar Name
 closureConvert :: Term -> StateT Int (Writer [IrDecl]) IrTm
 closureConvert (V p (Free n))          = return $ IrVar n
 -- Caso Bound: Todas las funciones deben terminar siendo top level, es decir, que no van a tener variables bindeadas
-closureConvert (V p (Bound i))         = error "Error en Closure Conversion. Se encontro bound variable."
+closureConvert (V p (Bound i))         = error ">> Error Closure Conversion: Se encontro bound variable."
 closureConvert (Const p c)             = return $ IrConst c
 closureConvert (Let p n ty t0 t1)      = do
                                             ct0 <- closureConvert t0

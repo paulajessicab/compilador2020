@@ -23,7 +23,7 @@ eval (V _ (Free nm)) = do
   -- unfold and keep going
   mtm <- lookupDecl nm 
   case mtm of 
-    Nothing -> failPCF $ "Error de ejecución: variable no declarada: " ++ ppName nm 
+    Nothing -> failPCF $ ">> Error ejecución Eval: variable no declarada: " ++ ppName nm 
     Just t -> eval t
 
 eval (App p l r) = do

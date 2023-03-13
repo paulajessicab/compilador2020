@@ -11,7 +11,7 @@ Este módulo permite elaborar términos y declaraciones para convertirlas desde
 fully named (@NTerm) a locally closed (@Term@) 
 -}
 
-module Elab ( elab, desugarTy, desugar, elab', desugarDec, elabDecl, elabDeclModule ) where
+module Elab ( elab, desugarTy, desugar, elab', desugarDec, elabDecl ) where
 
 import Lang
 import Subst
@@ -22,7 +22,7 @@ desugar :: MonadPCF m => STerm -> m NTerm
 desugar (SV p v)                   = return $ V p v
 desugar (SConst p c)               = return $ Const p c
 desugar (SBinaryOp p op)           = return $ Lam p "x" NatTy $ Lam p "y" NatTy (BinaryOp p op (V p "x") (V p "y"))
-desugar (SLam p [] _)              = failPosPCF p "Numero de argumentos incorrecto para Lam"
+desugar (SLam p [] _)              = failPosPCF p ">> Error Desugar: Numero de argumentos incorrecto para Lam."
 desugar (SLam p [b] t)             = do 
                                     ty <- desugarTy (snd b)
                                     tt <- desugar t
@@ -75,10 +75,10 @@ desugar (SLet p v [] ty t t')      = do
                                       dt <- desugar t
                                       return $ Let p v dty dt dt' -- implementacion let-binding interno 
 desugar (SLet p f xs ty t t')      = desugar $ SLet p f [] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
-desugar (SLetRec p _ [] _ _ _ ) = failPosPCF p "Error: LetRec debe tener al menos 1 argumento"
+desugar (SLetRec p _ [] _ _ _ ) = failPosPCF p ">> Error Desugar: LetRec debe tener al menos 1 argumento."
 desugar (SLetRec p f [(x, xty)] ty t t') = desugar $ SLet p f [] (SFunTy xty ty) (SFix p [(f, SFunTy xty ty), (x, xty)] t) t'
 desugar (SLetRec p f (x:xs) ty t t') = desugar $ SLetRec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t) t'
-desugar _ = failPCF "Error en la etapa de desugar"
+desugar _ = failPCF ">> Error Desugar: No especificado."
 
 -- | Quita el syntactic sugar de una declaración
 desugarDec :: MonadPCF m => SDecl STerm -> m (Maybe (Decl NTerm))
@@ -89,13 +89,13 @@ desugarDec (STypeAlias p n t)           =  do
                                               Nothing -> do
                                                           addSynTy n dt
                                                           return Nothing
-                                              Just _  -> failPosPCF p "ya está declarado"
+                                              Just _  -> failPosPCF p ">> Error Desugar: Type Alias ya está declarado."
 desugarDec (SLetDec p f [] _ t)         = do
                                           dt <- desugar t
                                           return $ Just $ Decl p f dt
 desugarDec (SLetDec p f [x] ty t)       = desugarDec $ SLetDec p f [] (SFunTy (snd x) ty) (SLam p [x] t)
 desugarDec (SLetDec p f (x:xs) ty t)    = desugarDec $ SLetDec p f [] (foldr (\x -> SFunTy (snd x)) ty (x:xs)) (SLam p (x:xs) t)
-desugarDec (SLetRecDec p _ [] _ _)      = failPosPCF p "Let Rec debe tener al menos 1 argumento"
+desugarDec (SLetRecDec p _ [] _ _)      = failPosPCF p ">> Error Desugar: Let Rec debe tener al menos 1 argumento"
 desugarDec (SLetRecDec p f [x] ty t)    = desugarDec $ SLetDec p f [] (SFunTy (snd x) ty) (SFix p [(f, SFunTy (snd x) ty), x] t)
 desugarDec (SLetRecDec p f (x:xs) ty t) = desugarDec $ SLetRecDec p f [x] (foldr (\x -> SFunTy (snd x)) ty xs) (SLam p xs t)
 
@@ -110,7 +110,7 @@ desugarTy (SAliasTy n) = do
                             ty <- lookupSynTy n
                             case ty of 
                               Just t -> return t
-                              Nothing -> failPCF "Alias de tipo no definido"
+                              Nothing -> failPCF "Error Desugar: Alias de tipo no definido."
 
 -- | 'elab' transforma variables ligadas en índices de de Bruijn en un término dado. 
 elab' :: NTerm -> Term
@@ -123,24 +123,8 @@ elab' (Fix p f fty x xty t) = Fix p f fty x xty (closeN [f, x] (elab' t))
 elab' (IfZ p c t e)         = IfZ p (elab' c) (elab' t) (elab' e)
 elab' (Let p v ty e1 e2)    = Let p v ty (elab' e1) (close v (elab' e2)) 
 
-elabDecl :: MonadPCF m => SDecl STerm -> m (Maybe (Decl Term))
-elabDecl sd = do 
-                nd <- desugarDec sd
-                case nd of
-                  Just d -> return $ Just $ fmap elab' d
-                  Nothing -> return Nothing
-
-elabDeclModule :: MonadPCF m => [SDecl STerm] -> m [Decl Term]
-elabDeclModule [] = failPCF "No code to elab"
-elabDeclModule [x] = do
-                        dx <- elabDecl x
-                        case dx of
-                          Nothing -> failPCF "Error al armar modulo"
-                          Just d -> return [d]
-elabDeclModule (x:xs) = do
-                          elabx <- elabDeclModule [x]
-                          elabxs <- elabDeclModule xs
-                          return $ elabx ++ elabxs
+elabDecl :: MonadPCF m => Decl NTerm -> m (Decl Term)
+elabDecl (Decl p x t) = return $ Decl p x (elab' t)
 
 elab :: MonadPCF m => STerm -> m Term
 elab st = do

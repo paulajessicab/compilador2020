@@ -61,7 +61,7 @@ search (V p (Free n)) env k = do
                                 v <- lookupDecl n
                                 case v of 
                                   Just t -> search t env k
-                                  Nothing -> failPosPCF p $ "Error: Variable no declarada: " ++ n 
+                                  Nothing -> failPosPCF p $ " >> Error CEK: Variable no declarada: " ++ n 
 search (Const _ (CNat n)) _ k = destroy (Cons n) k
 search (Lam _ x ty t) env k = destroy (VClos $ ClosFun env x ty t) k
 search kk@(Fix _ f fty x xty t) env k = destroy (VClos $ ClosFix env f fty x xty t) k

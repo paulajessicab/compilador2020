@@ -23,7 +23,8 @@ stack ghci
 stack ghci src/TypeChecker.hs
 ```
 
-Existe una batería de casos de prueba, se pueden ejecutar del siguiente modo:
+Existe una batería de casos de prueba.
+Se pueden ejecutar del siguiente modo:
 
 * LLVM:
 ```code

@@ -44,8 +44,8 @@ import Subst(subst, openN, substN)
 
 debug = flip trace
 
+optimizationLimit :: Int
 optimizationLimit = 5
-
 
 -- | Optimize
 -- | Aplica una serie de optimizaciones optimizationLimit veces. 
@@ -98,6 +98,8 @@ inlineT (BinaryOp i op a b) onceRef = do  case (op, a, b) of
                                                 -- Simplificacion algebraica
                                                 (Add, Const _ (CNat 0), b) -> inlineT b onceRef
                                                 (Add, a, Const _ (CNat 0)) -> inlineT a onceRef
+                                                (Sub, a, Const _ (CNat 0)) -> inlineT a onceRef
+                                                (Sub, Const p (CNat 0), b) -> inlineT (Const p (CNat 0)) onceRef
                                                 _ ->  do ai <- inlineT a onceRef
                                                          bi <- inlineT b onceRef
                                                          return $ BinaryOp i op ai bi

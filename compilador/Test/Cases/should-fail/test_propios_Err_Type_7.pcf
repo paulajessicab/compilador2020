@@ -1,0 +1,5 @@
+let tst (f : Nat -> Nat -> Nat)(x y: Nat): Nat = f x y
+
+let bin (x y: Nat) : Nat = y + 1 + x
+
+let res : Nat = bin + 5

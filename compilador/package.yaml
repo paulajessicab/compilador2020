@@ -82,3 +82,15 @@ tests:
     dependencies:
       - compiladores
       - HTF
+
+  CBytecode:
+    main: Bvmc.hs
+    source-dirs: Test
+    ghc-options:
+      - -main-is Bvmc
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - compiladores
+      - HTF

@@ -25,7 +25,6 @@ import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Global ( GlEnv(..) )
 import Elab ( elab, desugar, desugarDec, elab',desugarDec, elabDecl )
---import Eval ( eval )
 import TypeChecker ( tc, tcDecl )
 import qualified PPrint ( pp, ppTy, prettifyModule )
 import MonadPCF

@@ -13,6 +13,19 @@ La máquina va ejecutando las funciones mutuamente recursivas search y
 destroy desde un estado inicial hasta un estado final.
 Estado inicial de la forma <t, [], []>
 Estado final de la forma <<v,[]>>
+
+Los operadores unarios se reemplazaron por los binarios según Tarea B
+del apunte Optimizando la máquina virtual.
+
+Implementación previa:
+search (UnaryOp _ Pred t) env k = search t env (KPred : k) 
+search (UnaryOp _ Succ t) env k = search t env (KSucc : k) 
+
+destroy (Cons 0) (KPred:k) = destroy (Cons 0)  k
+destroy (Cons n) (KPred:k) = case (n < 1) of
+                                True -> destroy (Cons 0) k
+                                False -> destroy (Cons (n-1)) k
+destroy (Cons n) (KSucc:k) = destroy (Cons (n+1)) k
 -}
 
 module CEK where
@@ -70,11 +83,6 @@ search kk@(Fix _ f fty x xty t) env k = destroy (VClos $ ClosFix env f fty x xty
 -- | Toma un estado <<v, k>> y, dependiendo de la continuación, opera sobre este valor
 destroy :: MonadPCF m => Val -> Kont -> m Val
 destroy v [] = return v -- caso base -> estado final
-destroy (Cons 0) (KPred:k) = destroy (Cons 0)  k
-destroy (Cons n) (KPred:k) = case (n < 1) of
-                                True -> destroy (Cons 0) k
-                                False -> destroy (Cons (n-1)) k
-destroy (Cons n) (KSucc:k) = destroy (Cons (n+1)) k
 destroy (Cons 0) ((KIfZ env t _):k) = search t env k
 destroy (Cons _) ((KIfZ env _ e):k) = search e env k
 destroy (Cons m) ((KAddR env n):k) = search n env ((KAddL env m) : k)

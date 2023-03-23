@@ -1,0 +1,1 @@
+let resta : Nat -> Nat -> Nat = fix (resta : Nat -> Nat -> Nat) (m : Nat -> Nat) -> fun (n : Nat) -> ifz n then m else pred(resta m (pred n))

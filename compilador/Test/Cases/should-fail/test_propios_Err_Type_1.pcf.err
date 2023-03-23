@@ -1,0 +1,2 @@
+(1,47) >> Typecheck Error: Error de tipo en f
+Se esperaba un tipo función, pero se obtuvo: Nat

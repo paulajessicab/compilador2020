@@ -4,5 +4,5 @@ import Spec
 
 main :: IO ()
 main = 
-  putStrLn "Byte Test Suite" >>
+  putStrLn "BVM Haskell Test Suite" >>
   runTestWith "Test/byte_run.sh "

@@ -1,0 +1,3 @@
+(1,39) >> Typecheck Error: Error de tipo en 4
+Tipo esperado: Nat -> Nat
+pero se obtuvo: Nat

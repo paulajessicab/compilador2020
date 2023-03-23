@@ -253,7 +253,10 @@ void run(code init_c)
 			int b = (*--s).i;
 			int a = (*--s).i;
 
-			(*s++).i = a - b;
+			if(a >= b)
+				(*s++).i = a - b;
+			else
+				(*s++).i = 0;
 			
 			break;
 		}

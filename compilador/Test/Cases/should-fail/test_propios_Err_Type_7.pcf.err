@@ -1,0 +1,3 @@
+(5,21) >> Typecheck Error: Error de tipo en bin
+Tipo esperado: Nat
+pero se obtuvo: Nat -> Nat -> Nat

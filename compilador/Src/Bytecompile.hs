@@ -8,6 +8,8 @@ Maintainer  : mauro@fceia.unr.edu.ar
 Stability   : experimental
 Este módulo permite compilar módulos a la BVM. También provee una implementación de la BVM 
 para ejecutar bytecode.
+
+Se deja comentado el codigo correspondiente a SUCC y PRED ya que se fue reemplazado por las binops.
 -}
 module Bytecompile
   (Bytecode, bytecompileModule, runBC, bcWrite, bcRead)
@@ -65,7 +67,8 @@ instance Binary Bytecode32 where
                       BC xs <- go
                       return $ BC (x:xs)
 
-{- Estos sinónimos de patrón nos permiten escribir y hacer
+{-
+Estos sinónimos de patrón nos permiten escribir y hacer
 pattern-matching sobre el nombre de la operación en lugar del código
 entero, por ejemplo:
  
@@ -123,13 +126,6 @@ bc (Lam _ _ _ t)      = do
                           bct <- tailbc t
                           let bct' = bct ++ [RETURN]
                           return $ [FUNCTION, length bct'] ++ bct'
-{-
---Antes de tailcall
-bc (Lam _ _ _ t)      = do 
-                          bct <- bc t
-                          let bct' = bct ++ [RETURN]
-                          return $ [FUNCTION, length bct'] ++ bct'
--}
 bc (Fix _ _ _ _ _ e)  = do 
                         bce <- bc e
                         let bce' = bce ++ [RETURN]

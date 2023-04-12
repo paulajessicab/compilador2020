@@ -37,12 +37,12 @@ data BinaryOp = Add | Sub
 data STy = 
       SNatTy
     | SFunTy STy STy
-    | SAliasTy Name  -- Para cuando se utiliza el alias en lugar del tipo
+    | SAliasTy Name
     deriving Show
 
 -- | Tipo de datos de las declaraciones con SS
 data SDecl a =
-    STypeAlias { aliasPos :: Pos, aliasName :: Name, aliasTy :: STy } -- Para definir alias de tipos
+    STypeAlias { aliasPos :: Pos, aliasName :: Name, aliasTy :: STy }
   | SLetDec { letDeclPos :: Pos, letDeclName :: Name, letDeclParams :: [(Name, STy)], letDeclTy :: STy, letDeclBody :: a }
   | SLetRecDec { letRecDeclPos :: Pos, letRecDeclName :: Name, letRecDeclParams :: [(Name, STy)], letRecDeclTy :: STy, letRecDeclBody :: a }
   deriving (Show,Functor)
@@ -69,7 +69,7 @@ data Ty =
     | FunTy Ty Ty
     deriving (Show,Eq)
 
--- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
+-- | Tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a =
     Decl { declPos :: Pos, declName :: Name, declBody :: a }
   deriving (Show, Functor)
@@ -82,7 +82,7 @@ data Tm info var =
     V info var
   | Const info Const
   | Lam info Name Ty (Tm info var)
-  | Let info Name Ty (Tm info var) (Tm info var) -- implementacion let-binding interna
+  | Let info Name Ty (Tm info var) (Tm info var) -- Implementacion let-binding interna
   | App info (Tm info var) (Tm info var)
   | BinaryOp info BinaryOp (Tm info var) (Tm info var)
   | Fix info Name Ty Name Ty (Tm info var)

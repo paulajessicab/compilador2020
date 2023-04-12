@@ -152,8 +152,7 @@ tailbc (Let _ _ _ e1 e2)  = do
                           return $ bce1 ++ [SHIFT] ++ tbce2
 tailbc t                = do 
                           bct <- bc t
-                          return $ bct ++ [RETURN]
-                           
+                          return $ bct ++ [RETURN]                    
 
 -- | Traduccion a bytecode del modulo entero, agregando la impresion del ultimo valor y la instruccion de stop 
 bytecompileModule :: MonadPCF m => Module -> m Bytecode

@@ -163,28 +163,28 @@ cgExpr (BinOp op v1 v2) = do
                                              tell [s := Sub False False (LocalReference integer vf1) (LocalReference integer vf2) []]
                                              tell [r := Select (LocalReference i1 b) (cint 0) (LocalReference integer s) []]          
                             return (IntToPtr (LocalReference integer r) ptr [])
-
-cgExpr (UnOp Lang.Succ v) = do
-  cgExpr (BinOp Lang.Add v (C 1)) -- trucho
-
-cgExpr (UnOp Lang.Pred v) = do
-  cgExpr (BinOp Lang.Sub v (C 1)) -- trucho
-
-cgExpr (UnOp Lang.Print v) = do
-  v <- cgV v
-  vf <- freshName
-  r <- freshName
+                            
+cgExpr (UnOp op v) = do
+  v   <- cgV v
+  vf  <- freshName
+  r   <- freshName
   tell [vf := PtrToInt v integer []]
-  tell [r := LLVM.AST.Call
-                 Nothing
-                 CC.C
-                 []
-                 (Right (global (mkName "pcf_print") printTy))
-                 [(LocalReference integer vf, [])]
-                 []
-                 []]
+  case op of
+    Lang.Succ -> do tell [r := Add False False (LocalReference integer vf) (ConstantOperand (C.Int width 1)) []]
+    Lang.Pred -> do b   <- freshName
+                    s <- freshName
+                    tell [b := ICmp IP.SGT (LocalReference integer vf) (ConstantOperand (C.Int width 1)) []]
+                    tell [s := Sub False False (LocalReference integer vf) (ConstantOperand (C.Int width 1)) []]
+                    tell [r := Select (LocalReference i1 b) (cint 0) (LocalReference integer s) []]
+    Lang.Print -> do tell [r := LLVM.AST.Call
+                                    Nothing
+                                    CC.C
+                                    []
+                                    (Right (global (mkName "pcf_print") printTy))
+                                    [(LocalReference integer vf, [])]
+                                    []
+                                    []]
   return (IntToPtr (LocalReference integer r) ptr [])
-
 
 cgExpr (CIR.Phi brs) = do
   args <- mapM (\(loc, v) -> do op <- cgV v

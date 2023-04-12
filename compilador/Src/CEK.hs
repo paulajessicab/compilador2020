@@ -16,16 +16,6 @@ Estado final de la forma <<v,[]>>
 
 Los operadores unarios se reemplazaron por los binarios según Tarea B
 del apunte Optimizando la máquina virtual.
-
-Implementación previa:
-search (UnaryOp _ Pred t) env k = search t env (KPred : k) 
-search (UnaryOp _ Succ t) env k = search t env (KSucc : k) 
-
-destroy (Cons 0) (KPred:k) = destroy (Cons 0)  k
-destroy (Cons n) (KPred:k) = case (n < 1) of
-                                True -> destroy (Cons 0) k
-                                False -> destroy (Cons (n-1)) k
-destroy (Cons n) (KSucc:k) = destroy (Cons (n+1)) k
 -}
 
 module CEK where

@@ -56,12 +56,12 @@ optimize decls = optimize' optimizationLimit decls
 optimize' :: MonadPCF m => Int -> [Decl Term] -> m [Decl Term]
 optimize' 0 decls = return decls
 optimize' 1 decls = inline decls >>= deadCodeElimination
-optimize' n decls = optimize' 1 decls >>= optimize' (n-1) --`debug` ("\n OPT:\n "++ show decls)
+optimize' n decls = optimize' 1 decls >>= optimize' (n-1)
 
 
 -- | Inline Optimization
 inline :: MonadPCF m => [Decl Term] -> m [Decl Term]
-inline decls = mapM (\d -> inlineDecl d (Map.filter (== 1) (countFunctionRefs decls))) decls --`debug` ("\n once Declared:\n "++ show (countFunctionRefs decls) )
+inline decls = mapM (\d -> inlineDecl d (Map.filter (== 1) (countFunctionRefs decls))) decls
 
 inlineDecl :: MonadPCF m => Decl Term -> Map Name Int -> m (Decl Term)
 inlineDecl (Decl p n t) onceRef = do inlined <- inlineT t onceRef
@@ -71,16 +71,16 @@ inlineDecl (Decl p n t) onceRef = do inlined <- inlineT t onceRef
 inlineT :: MonadPCF m => Term  -> Map Name Int -> m (Term)
 inlineT fv@(V _ (Free n)) onceRef = do def <- lookupDecl n 
                                        case def of 
-                                          Just c@(Const _ _)    -> return c  --`debug` ("\n lookup:\n "++ show n ++ ": " ++ show def ) -- Constant propagation
-                                          Just t@(V _ (Free _)) -> return t  --`debug` ("\n lookup:\n "++ show n ++ ": " ++ show def )-- Copy propagation 
+                                          Just c@(Const _ _)    -> return c
+                                          Just t@(V _ (Free _)) -> return t
                                           Just t@(V _ _) -> return t
-                                          Just t@(Lam _ _ _ m) | Data.Map.member n onceRef == True -> return t --`debug` ("\n lookup:\n "++ show n ++ ": " ++ show def ) --Esta tengo que validar cuanto se llama
+                                          Just t@(Lam _ _ _ m) | Data.Map.member n onceRef == True -> return t
                                           Just t@(Fix _ _ _ _ _ m) | Data.Map.member n onceRef == True -> return t
-                                          _  -> return fv --`debug` ("\n lookup:\n "++ show n ++ ": " ++ show def )
+                                          _  -> return fv
 inlineT (App i fn@(Lam _ x tx t) b) onceRef = do case b of
-                                                        (Const _ _) -> return $ subst b t --`debug` ("\n Subs Constant:\n "++ show b ++ " EN " ++ show t)
-                                                        (V _ (Free _)) -> return $ subst b t --`debug` ("\n Subs Variable:\n "++ show b ++ " EN " ++ show t )
-                                                        _ -> return $ Let i "__opt_dummy_name" tx b t --`debug` ("\n Subs Constant:\n "++ show b ++ " EN " ++ show t )
+                                                        (Const _ _) -> return $ subst b t
+                                                        (V _ (Free _)) -> return $ subst b t
+                                                        _ -> return $ Let i "__opt_dummy_name" tx b t
 inlineT (Lam i v tv t) onceRef = do ti <- inlineT t onceRef
                                     return $ Lam i v tv ti
 inlineT (Let i n ty a b) onceRef = do ai <- inlineT a onceRef
@@ -103,7 +103,7 @@ inlineT (BinaryOp i op a b) onceRef = do  case (op, a, b) of
                                                 _ ->  do ai <- inlineT a onceRef
                                                          bi <- inlineT b onceRef
                                                          return $ BinaryOp i op ai bi
-inlineT (Fix i n ty n2 ty2 t) onceRef = do ti <- inlineT t onceRef -- Ver si no hay que hacer un tratamiento especial
+inlineT (Fix i n ty n2 ty2 t) onceRef = do ti <- inlineT t onceRef
                                            return $ Fix i n ty n2 ty2 ti
 inlineT (IfZ i c a b) onceRef = do  ci <- inlineT c onceRef
                                     ai <- inlineT a onceRef

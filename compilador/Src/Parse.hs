@@ -68,7 +68,6 @@ getPos = do pos <- getPosition
 tyvarP :: P STy
 tyvarP = do (SAliasTy <$> tyvar)
 
--- Ver si la suma es un atom tmb
 tyatom :: P STy
 tyatom = (reserved "Nat" >> return SNatTy)
          <|> tyvarP
@@ -80,12 +79,6 @@ typeP = try (do
           reservedOp "->"
           SFunTy x <$> typeP)
       <|> tyatom
-
-{-Ver de tyvar
-Por como esta escrito puede tomar como un nombre valido Nat por que parsea primero que el N sea mayúscula y después at se fija que sea un nombre valido, mientras que nombres como PNat te dice que es invalido por que entiende que la parte de Nat es un nombre reservado luego de haber parseado P como mayúscula.
-También no toma cosas como T1.
-Pero me preocupaba más que fuera más permisivo, y que después haya que reescribir ejemplos a que sea poco permisivo...
--}
 
 const :: P Const
 const = CNat <$> num
@@ -121,8 +114,6 @@ binOp = do
           i <- getPos
           SBinaryOp i <$> binOpName
 
--- No necesito una regla para el UnaryOp aplicado
--- porque es redundante con la de aplicación (el no aplicado es un atom)
 atom :: P STerm
 atom =     flip SConst <$> const <*> getPos
        <|> flip SV <$> var <*> getPos
@@ -137,7 +128,6 @@ lam = do i <- getPos
          reservedOp "->"
          SLam i bs <$> tm
 
--- Nota el parser app también parsea un solo atom.
 app :: P STerm
 app = do i <- getPos
          f <- atom
@@ -242,16 +232,16 @@ program :: P [SDecl STerm]
 program = many decl
 
 -- | Parsea una declaración a un término
--- Útil para las sesiones interactivas
+-- | Útil para las sesiones interactivas
 declOrTm :: P (Either (SDecl STerm) STerm)
 declOrTm =  try (Right <$> tm) <|> (Left <$> decl)
 
--- Corre un parser, chequeando que se pueda consumir toda la entrada
--- p parser, x cadena a parsear, filename
+-- | Corre un parser, chequeando que se pueda consumir toda la entrada
+-- | p parser, x cadena a parsear, filename
 runP :: P a -> String -> String -> Either ParseError a
 runP p s filename = runParser (whiteSpace *> p <* eof) () filename s
 
---para debugging en uso interactivo (ghci)
+-- | Para debugging en uso interactivo (ghci)
 parse :: String -> STerm
 parse s = case runP tm s "" of
             Right t -> t

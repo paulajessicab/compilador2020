@@ -126,14 +126,23 @@ Let n3 = ack 3 2 + n2 + x
 Ejecuciones:
 
 real    0m0.493s
+
 real    0m0.537s
+
 real    0m0.517s
+
 real    0m0.596s
+
 real    0m0.517s
+
 real    0m0.502s
+
 real    0m0.523s
+
 real    0m0.526s
+
 real    0m0.514s
+
 real    0m0.529s
 
 Promedio: 0m0.525s
@@ -162,14 +171,23 @@ Let n3 = (fix (ack : Nat -> Nat -> Nat) (m : Nat) ->
 Ejecuciones:
 
 real    0m0.535s
+
 real    0m0.553s
+
 real    0m0.493s
+
 real    0m0.500s
+
 real    0m0.502s
+
 real    0m0.522s
+
 real    0m0.514s
+
 real    0m0.493s
+
 real    0m0.524s
+
 real    0m0.485s
 
 Promedio: 0m0.512s
@@ -192,15 +210,25 @@ Let ans = countdown 345 + 7
 ```
 
 Ejecuciones:
+
 real    0m0.418s
+
 real    0m0.390s
+
 real    0m0.389s
+
 real    0m0.386s
+
 real    0m0.370s
+
 real    0m0.370s
+
 real    0m0.380s
+
 real    0m0.404s
+
 real    0m0.375s
+
 real    0m0.403s
 
 Promedio: 0m0.388s
@@ -215,15 +243,25 @@ Let ans = (fix (countdown : Nat -> Nat) (n : Nat) ->
 ```
 
 Ejecuciones:
+
 real    0m0.360s
+
 real    0m0.370s
+
 real    0m0.397s
+
 real    0m0.372s
+
 real    0m0.401s
+
 real    0m0.375s
+
 real    0m0.379s
+
 real    0m0.384s
+
 real    0m0.391s
+
 real    0m0.373s
 
 Promedio: 0m0.380s

@@ -1,7 +1,6 @@
 Video recomendado: https://www.youtube.com/watch?v=43XaZEn2aLc
 
 
-
 Se define la sintaxis azucarada PCF1.
 Se agrega sintáxis redundante para hacer más fácil la escritura y lectura de los programas.
 

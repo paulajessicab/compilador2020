@@ -11,5 +11,3 @@ fix bindea de a dos variables a la vez. Debemos abrirlas y cerrarlas juntas para
 Hay que contar índices?
 
 La implementación de subst sí cuenta índices para saber qué índices sustituir, pero no hay lógica para evitar capturas: están imposibilitadas por la representación. Esta complejidad queda totalmente contenida en este módulo. El resto de los módulos siempre manipula términos LC.
-
-...

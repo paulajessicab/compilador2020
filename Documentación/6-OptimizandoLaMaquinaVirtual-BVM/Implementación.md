@@ -14,7 +14,7 @@ d) Se cambió la compilación de funciones para optimizar las llamadas de cola.
    Se generaron los archivos Test/sumaNoTailRecursive.pcf y Test/sumaTailRecursive.pcf, en donde se implementa la suma sin recursividad de cola y con recursividad de cola respectivamente. Sobre sumaTailRecursive, se hicieron pruebas aplicando la optimización en la recursión de cola y sin aplicarla.
 
 | Operación | sumaNoTailRecursive | sumaTailRecursive (sin opt.) | sumaTailRecursive (opt.)  |
-|---|---|---|---|---|
+|---|---|---|---|
 | 45678 + 58966  | 0.010s | 0.009s | 0.008s |
 | 45678 + 589668 | 0.079s | 0.080s | 0.074s |
 | 9999999 + 8888888 | 1.201s | 1.216s | 1.111s|

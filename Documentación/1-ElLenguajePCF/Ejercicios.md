@@ -100,7 +100,6 @@ El orden aplicativo no es una estrategia de normalización. El ejemplo más típ
 En contraposición, el orden normal siempre encuentra la forma normal si esta existe. En el ejemplo anterior, KIQ es reducido bajo orden normal a I, una forma normal. Uno de los inconvenientes es que las redexes en los argumentos pueden ser copiadas, resultando en trabajo duplicado. En ese caso, el orden aplicativo se encuentra en ventaja, porque nunca sustituye argumentos que contengan redexes, y el trabajo es realizado una única vez.
 
 La mayoría de lenguajes de programación funcionales puros (sobre todo Miranda y sus descendientes, incluyendo Haskell) utilizan evaluación perezosa, que es esencialmente idéntica a la llamada por necesidad. Esta es similar a la reducción por orden normal, pero evita la duplicación de trabajo mediante la representación indirecta de los términos repetidos, abstraída de su posición real y accedida de forma indirecta (y por tanto, varias posiciones pueden compartir el mismo término).
---
 
 
 

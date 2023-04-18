@@ -23,8 +23,7 @@ Para permitir los saltos (por ejemplo, al llamar a una función o para recorrer 
 
 3) Se implementaron let bindings internos de forma eficiente agregando las instrucciones SHIFT y DROP.
 
-Notas:
-
+Notas:  
     * Se eliminó el opcode de FIXPOINT y se implementó el operador FIX.  
     * Más adelante se pide reemplazar la implementación de los operadores unarios, se deja comentada la implementación original.  
     * Se modifica Main.hs según lo solicitado.  

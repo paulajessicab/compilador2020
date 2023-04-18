@@ -26,17 +26,17 @@ Técnicas de optimización aplicadas en el presente trabajo:
 Si los operandos de una operación se conocen en tiempo de compilación, se aplica la operación de forma estática.
 
 Ejemplo:
-´´´ let ans : Int = (1 + 2) + y ´´´
+`let ans : Int = (1 + 2) + y`
 quedaría
-´´´ let ans : Int = 3 + y ´´´
+`let ans : Int = 3 + y`
 
 * Algebraic Simplification
 Se utilizan reglas de simplificación algebraicas.
 
 Ejemplo:
-´´´ let ans : Int =  y + 0 ´´´
+`let ans : Int =  y + 0`
 quedaría
-´´´ let ans : Int = y ´´´
+`let ans : Int = y`
 
 * Constant Propagation
 Si el valor de una variable es una constante, se reemplaza el uso de esa variable por la constante.
@@ -91,7 +91,7 @@ Se tomaron los tiempos de 10 ejecuciones de cada uno.
 
 Código optimizado:
 
-´´´
+```
 Let prd = fun (x : Nat) -> pred x
 Let sc = fun (x : Nat) -> succ x
 Let fib = fix (fib : Nat -> Nat) (x : Nat) ->
@@ -121,7 +121,7 @@ Let f2 = fun (x : Nat) -> x + 5
 Let f1 = fun (x : Nat) -> f2 x
 Let x = ifz DEBUG then f2 5 else f1 (2 + 3)
 Let n3 = ack 3 2 + n2 + x 
-´´´
+```
 
 Ejecuciones:
 
@@ -141,7 +141,7 @@ Promedio: 0m0.525s
 * optimizationLimit = 5
 
 Código optimizado:
-´´´
+```
 Let prd = fun (x : Nat) -> pred x
 Let sc = fun (x : Nat) -> succ x
 Let small = fix (small : Nat -> Nat) (x : Nat) -> x + 5
@@ -157,7 +157,7 @@ Let n3 = (fix (ack : Nat -> Nat -> Nat) (m : Nat) ->
               else
                 ifz n then ack (prd m) 1 else ack (prd m) (ack m (prd n))) 3
                                                                            2 + n2 + x
-´´´
+```
 
 Ejecuciones:
 
@@ -180,7 +180,7 @@ Promedio: 0m0.512s
 
 Código optimizado:
 
-´´´
+```
 Let x = 1
 Let y = 2 + x
 Let f = fun (y : Nat) -> 1 + x
@@ -189,7 +189,7 @@ Let suma5 = suma 5
 Let countdown = fix (countdown : Nat -> Nat) (n : Nat) ->
                   ifz n then 0 else countdown (pred n)
 Let ans = countdown 345 + 7	 
-´´´
+```
 
 Ejecuciones:
 real    0m0.418s
@@ -209,10 +209,10 @@ Promedio: 0m0.388s
 
 Código optimizado:
 
-´´´
+```
 Let ans = (fix (countdown : Nat -> Nat) (n : Nat) ->
              ifz n then 0 else countdown (pred n)) 345 + 7
-´´´
+```
 
 Ejecuciones:
 real    0m0.360s
@@ -234,7 +234,6 @@ En las pruebas realizadas, se notó una reducción en el tamaño del código gen
 Esto puede deberse probablemente a que el código inicial no era muy complejo. Para tener estadísticas más concluyentes, deberían hacerse pruebas sobre código de entrada más complejo y con un mayor número de ejecuciones.
 También se podrían hacer pruebas tomando otras decisiones de implementación (por ejemplo, con otras heurísticas para inlining).
 
---
 Comandos utilizados en las pruebas de performance:
 time <cmd>
 /usr/bin/time -v <cmd>

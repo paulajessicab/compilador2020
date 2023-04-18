@@ -8,7 +8,7 @@ Cada bloque básico consiste en:
 * Una secuencia de instrucciones simples (Inst)
 * Un terminador -salto o retorno de función- (Terminator)
 
-type BasicBlock = (Loc, [Inst], Terminator)
+`type BasicBlock = (Loc, [Inst], Terminator)`
 
 **Instrucciones:**
 * asignación a registro temporario

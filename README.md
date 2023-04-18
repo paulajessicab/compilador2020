@@ -92,3 +92,20 @@ stack run -- --llvm <filenames>
 ```code
 stack run -- --runllvm <filenames>
 ```
+
+* Testing:
+
+Compilacion Bytecode y ejecucion BVM implementada en Haskell:
+```code
+stack test :Bytecode
+```
+
+Compilacion Bytecode y ejecucion BVM implementada en C:
+```code
+stack test :CBytecode
+```
+
+Compilacion y ejecución LLVM:
+```code
+stack test :LLVM
+```

@@ -123,7 +123,6 @@ data BlockState = BlockState { index :: Int, instructions :: [Inst], terminator 
 newtype CanonMonad a = CanonMonad { runCanonMonad :: State CanonState a }
     deriving (Functor, Applicative, Monad, MonadState CanonState )
 
--- Necesito un symbol table? Creo que si para locales
 saveLocal :: Name -> Expr -> CanonMonad ()
 saveLocal n e = do 
                   l <- gets locals

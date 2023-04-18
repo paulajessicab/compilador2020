@@ -1,0 +1,3 @@
+let rec sumaNT (m n : Nat) : Nat = ifz n then m else succ (sumaNT m (pred n))
+
+let ans : Nat = sumaNT 9999999 8888888

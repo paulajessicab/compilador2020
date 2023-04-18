@@ -130,7 +130,7 @@ bc (Fix _ _ _ _ _ e)  = do
                         bce <- bc e
                         let bce' = bce ++ [RETURN]
                         return $ [FUNCTION, length bce'] ++ bce' ++ [FIX]
-bc (IfZ _ c t0 t1)    = do --Primero introduzco el nro de la condición, luego las longitudes del bc de los terminos para poder saltar y, por último, los términos
+bc (IfZ _ c t0 t1)    = do
                           bcc <- bc c
                           bct0 <- bc t0
                           bct1 <- bc t1

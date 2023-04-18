@@ -3,6 +3,11 @@ Traducir de PCF0 a PCF1
 Ejercicio 1) 
 a) let x:Nat = 2 in succ x
 
+
+(fun (x : Nat) -> succ x) 2
+
+**Validación:**
+
 :print let x:Nat = 2 in succ x
 
 STerm:
@@ -16,6 +21,10 @@ App (1,1) (Lam (1,1) "x" NatTy (UnaryOp (1,18) Succ (V (1,24) (Bound 0)))) (Cons
 
 b) fun (x:Nat) -> x
 
+fun (x : Nat) -> x
+
+**Validación**
+
 :print fun (x:Nat) -> x
 STerm:
 SLam (1,1) [("x",SNatTy)] (SV (1,17) "x")
@@ -27,6 +36,10 @@ Term:
 Lam (1,1) "x" NatTy (V (1,17) (Bound 0))
 
 c) let id (x:Nat):Nat = x in id 10
+
+(fun (id : Nat -> Nat) -> id 10) (fun (x : Nat) -> x)
+
+**Validación**
 
 :print let id (x:Nat):Nat = x in id 10
 STerm:
@@ -40,6 +53,10 @@ App (1,1) (Lam (1,1) "id" (FunTy NatTy NatTy) (App (1,27) (V (1,30) (Bound 0)) (
 
 d) let app5 (f:Nat-> Nat) : Nat = f 5 in app5 succ
 
+(fun app5 : ((Nat -> Nat) -> Nat) -> fun (x : Nat) -> app5 (succ x))(fun f : (Nat -> Nat) -> f 5)
+
+**Validación**
+
 :print let app5 (f:Nat-> Nat) : Nat = f 5 in app5 succ
 STerm:
 SLet (1,1) "app5" [("f",SFunTy SNatTy SNatTy)] SNatTy (SApp (1,32) (SV (1,34) "f") (SConst (1,36) (CNat 5))) (SApp (1,39) (SV (1,44) "app5") (SUnaryOp (1,44) Succ))
@@ -52,6 +69,10 @@ App (1,1) (Lam (1,1) "app5" (FunTy (FunTy NatTy NatTy) NatTy) (App (1,39) (V (1,
 
 e) fun (x:Nat) (y:Nat) -> ifz x then y else 1
 
+fun (x : Nat) -> fun (y : Nat) -> ifz x then y else 1
+
+**Validación**
+
 :print fun (x:Nat) (y:Nat) -> ifz x then y else 1
 STerm:
 SLam (1,1) [("x",SNatTy),("y",SNatTy)] (SIfZ (1,24) (SV (1,30) "x") (SV (1,37) "y") (SConst (1,43) (CNat 1)))
@@ -62,9 +83,13 @@ Lam (1,1) "x" NatTy (Lam (1,1) "y" NatTy (IfZ (1,24) (V (1,30) "x") (V (1,37) "y
 Term:
 Lam (1,1) "x" NatTy (Lam (1,1) "y" NatTy (IfZ (1,24) (V (1,30) (Bound 1)) (V (1,37) (Bound 0)) (Const (1,43) (CNat 1))))
 
-Ejercicio 2 (declaraciones):
+- Ejercicio 2 (declaraciones):
 
 a) let rec doble (x:Nat):Nat = ifz x then 0 else succ(succ(doble(pred x)))
+
+let doble : Nat -> Nat = fix (doble : Nat -> Nat) (x : Nat) -> ifz x then 0 else succ (succ (doble (pred x)))
+
+**Validación**
 
 PCF> :browse
 doble
@@ -75,6 +100,10 @@ fix (doble : Nat -> Nat) (x : Nat) ->
   ifz x then 0 else succ (succ (doble (pred x))) : Nat -> Nat
 
 b) let rec ack (m:Nat) (n:Nat) : Nat = ifz m then succ m else (ifz n then ack (pred m) 1 else ack (pred m) (ack m (pred n)))
+
+let ack : Nat -> Nat -> Nat = fix (ack : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) ->  ifz m then (succ m) else (ifz n then ack (pred m) 1 else ack (pred m) (ack m (pred n)))
+
+**Validación**
 
 :browse
 doble

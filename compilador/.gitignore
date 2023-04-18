@@ -10,5 +10,7 @@ stack.yaml.lock
 *.log
 *.blg
 *.bbl
+*.pdf
 compiladores.cabal
 Test/Cases/*.byte
+Test/*.byte

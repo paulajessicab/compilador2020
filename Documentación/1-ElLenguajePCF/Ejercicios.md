@@ -1,61 +1,79 @@
-stack run
+- Ejercicio 1:
 
-SUMA 
-PCF> let suma = fix (suma : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else succ (suma m (pred n))
-PCF> p
-fix (suma : Nat -> Nat -> Nat) (m : Nat) ->
-  fun (n : Nat) -> ifz n then m else succ (suma m (pred n)) : Nat -> Nat -> Nat
-PCF> p 4 5
-9 : Nat
+`let suma = fix (suma : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else succ (suma m (pred n))`
 
-let resta = fix (resta : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else pred(resta m (pred n))
+Complejidad: O(n)
 
-let mult = fix (mult : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then 0 else suma m (mult m (pred n))
+`let resta = fix (resta : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else pred(resta m (pred n))`
 
-let exp = fix (exp : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then 1 else mult m (exp m (pred n))
+Complejidad: O(n)
 
-let fact = fix(fact : Nat -> Nat) (m : Nat) -> ifz m then 1 else mult m (fact (pred m))
+`let mult = fix (mult : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then 0 else suma m (mult m (pred n))`
 
-Ejercicio 2 a:
+Complejidad: O(m.n)
 
-let true = 0
-let false = 1
+`let exp = fix (exp : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then 1 else mult m (exp m (pred n))`
 
-let ifthenelse = fun (c : Nat) -> fun (t : Nat) -> fun (e : Nat) -> ifz c then t else e
+Complejidad: O(n.m^2)
 
+`let fact = fix(fact : Nat -> Nat) (m : Nat) -> ifz m then 1 else mult m (fact (pred m))`
 
-Ejercicio 2b: 
+Complejidad: O(m^3)
 
-let pair = fun (x : Nat) -> fun (y : Nat) -> fun (b: Nat) -> ifthenelse b x y
+- Ejercicio 2a:
 
-let proj1 = fun (p : Nat -> Nat) -> p true
+`let true = 0`
+`let false = 1`
 
-let proj2 = fun (p : Nat -> Nat) -> p false
-
-Ejercicio 3:
-
-let gcd = fix (gcd : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else (ifz m then n else (ifz (resta n m) then gcd (resta m n) n else gcd m (resta n m)))
-
-Ejercicio 4:
-
-let rnat = fun (z : Nat) -> fun (b : Nat -> Nat -> Nat) -> fix (f : Nat -> Nat) (m : Nat) -> ifz m then z else b (f (pred m)) (pred m) 
-
-let sumar = fun (x : Nat) -> fun (y : Nat) -> rnat x (fun (z: Nat) -> fun (w : Nat) -> succ z) y
+`let ifthenelse = fun (c : Nat) -> fun (t : Nat) -> fun (e : Nat) -> ifz c then t else e`
 
 
-Ejercicio 5:
+- Ejercicio 2b: 
 
-let minimizadorN = fix (minimizadorN : (Nat-> Nat) -> Nat -> Nat) (f : Nat -> Nat) -> fun (n : Nat) -> ifz f n then n else minimizadorN f (succ n)
+`let pair = fun (x : Nat) -> fun (y : Nat) -> fun (b: Nat) -> ifthenelse b x y`
 
-let minimizador = fun (f : Nat -> Nat) -> minimizadorN f 0
+`let proj1 = fun (p : Nat -> Nat) -> p true`
+
+`let proj2 = fun (p : Nat -> Nat) -> p false`
+
+
+- Ejercicio 3:
+
+`let gcd = fix (gcd : Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else (ifz m then n else (ifz (resta n m) then gcd (resta m n) n else gcd m (resta n m)))`
+
+
+- Ejercicio 4:
+
+`let rnat = fun (z : Nat) -> fun (b : Nat -> Nat -> Nat) -> fix (f : Nat -> Nat) (m : Nat) -> ifz m then z else b (f (pred m)) (pred m)`
+
+`let sumar = fun (x : Nat) -> fun (y : Nat) -> rnat x (fun (z: Nat) -> fun (w : Nat) -> succ z) y`
+
+
+- Ejercicio 5:
+
+`let minimizadorN = fix (minimizadorN : (Nat-> Nat) -> Nat -> Nat) (f : Nat -> Nat) -> fun (n : Nat) -> ifz f n then n else minimizadorN f (succ n)`
+
+`let minimizador = fun (f : Nat -> Nat) -> minimizadorN f 0`
 
 let pruebaMin = fun (n : Nat) -> resta 2 n
 
-Ejercicio 6:
+- Ejercicio 6:
 
-https://es.wikipedia.org/wiki/C%C3%A1lculo_lambda#Sem%C3%A1ntica
+¿Es la beta-reducción una regla ecuacional válida en PCF0? Es decir, ¿son los términos (fun(x : T) -> t1) t2 y [t2/x]t1 equivalentes
+
+La Beta-reducción no es una regla ecuacional válida en PCF0 pues para ciertos casos no cumpliría con la semántica de PCF0.
+
+Dem/ Asumamos que la b-reducción es una regla válida para PCF0.
+
+En particular, t2 podría ser ((\x.x) z) y y t1 podría ser \y z. z y 
+
+La semántica operacional de la beta reducción es no determinista, es decir que puede existir más de una forma de beta reducir la expresión (\x.t1) t2. Una de las opciones sería usar la estratégia de reducción call by name (que es como la estrategia normal: el redex más superficial y más a la izquierda se evalúa primero. Por tanto, siempre que sea posible, los argumentos de una abstracción son sustituidos en su cuerpo antes de que los argumentos sean reducidos.) **pero no se realizan reducciones dentro de las abstracciones**. Como t1 no se puede reducir más, beta reducir el término completo sería hacer [t2/x]t1. Hacer esta sustitución daría como resultado \y. y (\x.x) z, y sería una forma normal dentro de los criterios de esa estratégia de reducción.
+Por otro lado, la semántica de PCF0 es Call by Value, es decir que **solo las redexes más superficiales son reducidas: una redex solo se reduce cuando su expresión derecha ha sido reducida a un valor (una variable o una abstracción lambda)**, por lo tanto, la reducción que debería hacerse en el caso del término (fun(x : T) -> t1) t2 sería primero sobre t2 (lo que daría z) y luego (fun(x : T) -> t1) z (que daría como resultado \y. y z).
+
 
 ---
+https://es.wikipedia.org/wiki/C%C3%A1lculo_lambda#Sem%C3%A1ntica
+
 El que un término llegue a una forma normal o no, y cuanto trabajo debe realizarse para ello si se puede, depende sustancialmente de la estrategia de reducción utilizada. La distinción entre las estrategias de reducción está relacionada con la distinción en lenguajes de programación funcional entre evaluación estricta y evaluación perezosa.
 
 * Reducciones beta completas
@@ -84,15 +102,6 @@ En contraposición, el orden normal siempre encuentra la forma normal si esta ex
 La mayoría de lenguajes de programación funcionales puros (sobre todo Miranda y sus descendientes, incluyendo Haskell) utilizan evaluación perezosa, que es esencialmente idéntica a la llamada por necesidad. Esta es similar a la reducción por orden normal, pero evita la duplicación de trabajo mediante la representación indirecta de los términos repetidos, abstraída de su posición real y accedida de forma indirecta (y por tanto, varias posiciones pueden compartir el mismo término).
 --
 
-¿Es la beta-reducción una regla ecuacional válida en PCF0? Es decir, ¿son los términos (fun(x : T) -> t1) t2 y [t2/x]t1 equivalentes
 
-La Beta-reducción no es una regla ecuacional válida en PCF0 pues para ciertos casos no cumpliría con la semántica de PCF0.
-
-Dem/ Asumamos que la b-reducción es una regla válida para PCF0.
-
-En particular, t2 podría ser (\x.x) y y t1 podría ser \y z. z y 
-
-La semántica operacional de la beta reducción es no determinista, es decir que puede existir más de una forma de beta reducir la expresión (\x.t1) t2. Una de las opciones sería usar la estratégia de reducción de llamada por nombre (que es como la estratégia normal: el redex más superficial y más a la izquierda se evalúa primero. Por tanto, siempre que sea posible, los argumentos de una abstracción son sustituidos en su cuerpo antes de que los argumentos sean reducidos.) *pero no se realizan reducciones dentro de las abstracciones*. Como t1 no se puede reducir más, beta reducir el término completo sería hacer [t2/x]t1. Hacer esta sustitución daría como resultado \y. y (\x.x) z y sería una forma normal dentro de los criterios de esa estratégia de reducción. 
-Por otro lado, la semántica de PCF0 es Call by Value, es decir que *Solo las redexes más superficiales son reducidas: una redex solo se reduce cuando su expresión derecha ha sido reducida a un valor (una variable o una abstracción lambda)*, por lo tanto, la reducción que debería hacerse en el caso del término (fun(x : T) -> t1) t2 sería primero sobre t2 (lo que daría z) y luego (fun(x : T) -> t1) z (que daría como resultado \y. y z .
 
  

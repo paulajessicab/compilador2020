@@ -7,6 +7,14 @@ Se tomaron ejemplos que se encontraban en el repositorio de la materia de los di
 
 Comandos:
 
-stack test :Bytecode (compilacion Bytecode y ejecucion BVM implementada en Haskell)
-stack test :CBytecode (compilacion Bytecode y ejecucion BVM implementada en C)
-stack test :LLVM
+Compilacion Bytecode y ejecucion BVM implementada en Haskell:
+
+`stack test :Bytecode`
+
+Compilacion Bytecode y ejecucion BVM implementada en C:
+
+`stack test :CBytecode`
+
+Compilación y ejecución LLVM:
+
+`stack test :LLVM`

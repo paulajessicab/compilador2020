@@ -14,3 +14,5 @@ stack.yaml.lock
 compiladores.cabal
 Test/Cases/*.byte
 Test/*.byte
+output.ll
+prog

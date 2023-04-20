@@ -405,8 +405,8 @@ typeCheckFiles fs = do e <- catchErrors $ mapM (handleFile False False) fs
 handleFile :: MonadPCF m => Bool -> Bool -> String -> m [Decl Term]
 handleFile opt pp f = do 
     sdecls <- readFilePCF f
-    condPrint pp "\x1b[36m > Declaraciones con Syntactic Sugar:\x1b[0m \n"
-    condPrint pp $ show sdecls
+    condPrint debugFlag "\x1b[36m > Declaraciones con Syntactic Sugar:\x1b[0m \n"
+    condPrint debugFlag $ show sdecls
     desugared <- mapM desugarDec sdecls
     decls <- mapM elabDecl $ concatMap maybeToList desugared
     mapM tcDecl decls
